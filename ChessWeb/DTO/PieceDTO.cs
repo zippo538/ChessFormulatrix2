@@ -4,7 +4,7 @@ namespace ChessWeb.DTO;
 
 public class PieceDto
 {
-    public  Color PieceColor { get; } 
-    public PieceType Type { get; set; } 
+    public string PieceColor { get; set; } = string.Empty; 
+    public string Type { get; set; } = string.Empty; 
     public bool HasMoved { get; set; } 
 }

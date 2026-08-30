@@ -20,9 +20,18 @@ public class ChessProfile : Profile
 
         // Konfigurasi Piece[cite: 16]
         CreateMap<Piece, PieceDto>()
-            .ForMember(dest => dest.PieceColor, opt => opt.MapFrom(src => src.PieceColor.ToString()))
-            .ForMember(dest => dest.Type, opt => opt.MapFrom(src => src.Type.ToString()))
-            .ForMember(dest => dest.HasMoved, opt => opt.MapFrom(src => src.Hasmove));
+            .ForMember(
+                destination => destination.PieceColor,
+                option => option.MapFrom(source => source.PieceColor.ToString())
+            )
+            .ForMember(
+                destination => destination.Type,
+                option => option.MapFrom(source => source.Type.ToString())
+            )
+            .ForMember(
+                destination => destination.HasMoved,
+                option => option.MapFrom(source => source.Hasmove)
+            );
 
         // Konfigurasi Tile[cite: 12]
         CreateMap<Tile, TileDto>();

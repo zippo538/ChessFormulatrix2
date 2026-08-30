@@ -29,11 +29,17 @@ const pieceSymbols: Record<PieceName, string> = {
 };
 
 const enumOrder = (
-  import.meta.env.VITE_PIECE_ENUM_ORDER ||
-  'Pawn,Knight,Bishop,Rook,Queen,King'
+    import.meta.env.VITE_PIECE_ENUM_ORDER ||
+    'Pawn,Knight,Bishop,Rook,Queen,King'
 )
-  .split(',')
-  .map((value: string) => value.trim());
+    .split(',')
+    .map((value: string) => value.trim());
+
+const colorEnumOrder = (
+    import.meta.env.VITE_COLOR_ENUM_ORDER
+)
+    .split(',')
+    .map((value: string) => value.trim().toLowerCase());
 
 function record(value: unknown): UnknownRecord {
   return value && typeof value === 'object' ? (value as UnknownRecord) : {};
@@ -47,8 +53,16 @@ function first(source: UnknownRecord, keys: string[]): unknown {
 }
 
 export function normalizeColor(value: unknown): ChessColor | undefined {
-  if (value === 0 || String(value).toLowerCase() === 'white') return 'White';
-  if (value === 1 || String(value).toLowerCase() === 'black') return 'Black';
+  const raw = String(value ?? '').trim().toLowerCase();
+  const numeric = typeof value === 'number' || /^\d+$/.test(raw)
+      ? Number(value)
+      : undefined;
+  const normalized = numeric !== undefined
+      ? colorEnumOrder[numeric]
+      : raw;
+
+  if (normalized === 'white') return 'White';
+  if (normalized === 'black') return 'Black';
   return undefined;
 }
 
@@ -84,10 +98,10 @@ export function normalizeBoard(payload: unknown): BoardState {
   const source = record(payload);
   const rawTiles = first(source, ['tiles', 'Tiles']);
   const tiles = Array.isArray(rawTiles)
-    ? rawTiles
-    : Array.isArray(payload)
-      ? payload
-      : [];
+      ? rawTiles
+      : Array.isArray(payload)
+          ? payload
+          : [];
   const position: BoardState['position'] = {};
   const pieces: BoardState['pieces'] = {};
 
@@ -97,19 +111,21 @@ export function normalizeBoard(payload: unknown): BoardState {
     if (!rawPiece) return;
     const piece = record(rawPiece);
     const color = normalizeColor(
-      first(piece, ['pieceColor', 'PieceColor', 'color', 'Color']),
+        first(piece, ['pieceColor', 'PieceColor', 'color', 'Color']),
     );
     const type = normalizePiece(
-      first(piece, ['type', 'Type', 'pieceType', 'PieceType']),
+        first(piece, ['type', 'Type', 'pieceType', 'PieceType']),
     );
     if (!color || !type) return;
 
     const tilePosition =
-      normalizePosition(first(tile, ['position', 'Position'])) ??
-      normalizePosition(tile) ?? {
-        row: Math.floor(index / 8),
-        column: index % 8,
-      };
+        normalizePosition(
+            first(tile, ['tilePosition', 'TilePosition', 'position', 'Position']),
+        ) ??
+        normalizePosition(tile) ?? {
+          row: Math.floor(index / 8),
+          column: index % 8,
+        };
     const square = positionToSquare(tilePosition);
     pieces[square] = { color, type };
     position[square] = {
@@ -131,7 +147,7 @@ export function normalizeMove(payload: unknown): MoveDto | undefined {
     from,
     to,
     promotionType: normalizePiece(
-      first(move, ['promotionType', 'PromotionType', 'promptionType', 'PromptionType']),
+        first(move, ['promotionType', 'PromotionType', 'promptionType', 'PromptionType']),
     ),
   };
 }
@@ -148,7 +164,7 @@ export function normalizeHistory(payload: unknown): HistoryEntry[] {
         color: normalizeColor(first(entry, ['pieceColor', 'PieceColor', 'color', 'Color'])),
         piece: normalizePiece(first(entry, ['pieceType', 'PieceType', 'piece', 'Piece'])),
         capturedPiece: normalizePiece(
-          first(entry, ['capturedPieceType', 'CapturedPieceType']),
+            first(entry, ['capturedPieceType', 'CapturedPieceType']),
         ),
         moveType: String(first(entry, ['moveType', 'MoveType', 'type', 'Type']) ?? ''),
       },

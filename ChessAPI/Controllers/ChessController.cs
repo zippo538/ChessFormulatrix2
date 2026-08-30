@@ -28,19 +28,26 @@ public class ChessController : ControllerBase
     // ==========================================
 
     [HttpPost]
-    public IActionResult CreateGame([FromBody] PlayerDTO request)
+    public IActionResult CreateGame([FromBody] CreateGameDTO request)
     {
+        if (string.IsNullOrWhiteSpace(request.WhiteName))
+            return BadRequest("Nama pemain Putih wajib diisi.");
+
+        if (!request.VsBot && string.IsNullOrWhiteSpace(request.BlackName))
+            return BadRequest("Nama pemain Hitam wajib diisi untuk mode player vs player.");
+
         // Membuat instance game menggunakan model asli dari ChessConsole
-        var whitePlayer = new Player(request.Name, Color.White);
-        var blackPlayer = new Player("AI Bot", Color.Black); // Karena single player
-        
-        var game = new Game(whitePlayer, blackPlayer);
+        var whitePlayer = new Player(request.WhiteName, Color.White);
+        var blackName = request.VsBot ? "AI Bot" : request.BlackName!;
+        var blackPlayer = new Player(blackName, Color.Black);
+
+        var game = new Game(whitePlayer, blackPlayer, request.VsBot);
         game.StartGame();
 
         var gameId = Guid.NewGuid().ToString();
         _activeGames.TryAdd(gameId, game);
 
-        return Ok(new { GameId = gameId, Message = "Game started" });
+        return Ok(new { GameId = gameId, Message = "Game started", VsBot = request.VsBot });
     }
 
     [HttpGet("{gameId}/board")]
@@ -116,7 +123,7 @@ public class ChessController : ControllerBase
 
             game.MakeMove(move);
 
-            // Cek kondisi akhir permainan setelah move
+            // Cek kondisi akhir permainan setelah move pemain
             if (game.GameResult.Type != GameOverType.None)
             {
                 return Ok(new { 
@@ -126,7 +133,40 @@ public class ChessController : ControllerBase
                 });
             }
 
-            return Ok(new { GameOver = false, CurrentTurn = game.GetColorsPlayer().ToString() });
+            // Mode vs Bot: giliran Hitam otomatis dibalas oleh Bot memakai
+            // engine Minimax + Alpha-Beta di Game.cs (lihat GetBestMove/MakeBotMove).
+            // Mode PvP (VsBot = false): dilewati, giliran Hitam menunggu input pemain.
+            object? botMoveInfo = null;
+            if (game.VsBot && game.GetColorsPlayer() == Color.Black)
+            {
+                var botMove = game.MakeBotMove(Game.DefaultBotDepth);
+                if (botMove.HasValue)
+                {
+                    botMoveInfo = new
+                    {
+                        From = new { botMove.Value.From.row, botMove.Value.From.Column },
+                        To = new { botMove.Value.To.row, botMove.Value.To.Column }
+                    };
+                }
+            }
+
+            if (game.GameResult.Type != GameOverType.None)
+            {
+                return Ok(new
+                {
+                    GameOver = true,
+                    Reason = game.GameResult.Type.ToString(),
+                    Winner = game.GameResult.Winner.ToString(),
+                    BotMove = botMoveInfo
+                });
+            }
+
+            return Ok(new
+            {
+                GameOver = false,
+                CurrentTurn = game.GetColorsPlayer().ToString(),
+                BotMove = botMoveInfo
+            });
         }
 
         return BadRequest("Illegal move.");
@@ -160,7 +200,61 @@ public class ChessController : ControllerBase
     }
 
     // ==========================================
-    // 4. GAME ACTIONS
+    // 4. BOT (AI) MOVE
+    // ==========================================
+
+    // Endpoint manual untuk memicu langkah Bot secara eksplisit.
+    // Berguna jika Anda ingin memisahkan "giliran pemain" dan "giliran bot"
+    // di sisi client (misal menampilkan animasi "Bot sedang berpikir...").
+    // Jika Anda memakai auto-reply di MakeMove di atas, endpoint ini opsional.
+    [HttpPost("{gameId}/bot-move")]
+    public IActionResult MakeBotMove(string gameId, [FromQuery] int depth = Game.DefaultBotDepth)
+    {
+        if (!_activeGames.TryGetValue(gameId, out var game))
+            return NotFound("Game session not found.");
+
+        if (game.GameResult.Type != GameOverType.None)
+            return BadRequest("Game sudah berakhir.");
+
+        if (!game.VsBot)
+            return BadRequest("Game ini adalah mode player vs player, tidak ada Bot untuk dijalankan.");
+
+        // Batasi depth agar pencarian Minimax tidak membebani server secara berlebihan
+        var safeDepth = Math.Clamp(depth, 1, 4);
+        var botColor = game.CurrentPlayer.PlayerColor;
+
+        var botMove = game.MakeBotMove(safeDepth);
+        if (botMove == null)
+            return BadRequest("Bot tidak memiliki langkah yang tersedia.");
+
+        var moveInfo = new
+        {
+            From = new { botMove.Value.From.row, botMove.Value.From.Column },
+            To = new { botMove.Value.To.row, botMove.Value.To.Column },
+            Color = botColor.ToString()
+        };
+
+        if (game.GameResult.Type != GameOverType.None)
+        {
+            return Ok(new
+            {
+                GameOver = true,
+                Reason = game.GameResult.Type.ToString(),
+                Winner = game.GameResult.Winner.ToString(),
+                BotMove = moveInfo
+            });
+        }
+
+        return Ok(new
+        {
+            GameOver = false,
+            CurrentTurn = game.GetColorsPlayer().ToString(),
+            BotMove = moveInfo
+        });
+    }
+
+    // ==========================================
+    // 5. GAME ACTIONS
     // ==========================================
 
     [HttpPost("{gameId}/resign")]

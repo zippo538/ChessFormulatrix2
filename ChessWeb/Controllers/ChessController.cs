@@ -30,31 +30,104 @@ public class ChessController : ControllerBase
     // ==========================================
 
     [HttpPost]
-    public IActionResult CreateGame([FromBody] PlayerDTO request)
+    public IActionResult CreateGame(
+        [FromBody] List<PlayerDTO> players,
+        [FromQuery] int minutes = 10)
     {
-        // Membuat instance game menggunakan model asli dari ChessConsole
-        var whitePlayer = new Player(request.Name, Color.White);
-        var blackPlayer = new Player("AI Bot", Color.Black); // Karena single player
-        
-        var game = new Game(whitePlayer, blackPlayer);
+        if (players is null || players.Count != 2)
+        {
+            return BadRequest(
+                "Game harus memiliki tepat dua pemain."
+            );
+        }
+
+        var whiteRequest = players.SingleOrDefault(
+            player => player.PlayerColor == Color.White
+        );
+
+        var blackRequest = players.SingleOrDefault(
+            player => player.PlayerColor == Color.Black
+        );
+
+        if (whiteRequest is null || blackRequest is null)
+        {
+            return BadRequest(
+                "Harus terdapat satu pemain White dan satu pemain Black."
+            );
+        }
+
+        if (string.IsNullOrWhiteSpace(whiteRequest.Name) ||
+            string.IsNullOrWhiteSpace(blackRequest.Name))
+        {
+            return BadRequest("Nama kedua pemain wajib diisi.");
+        }
+
+        var whitePlayer = new Player(
+            whiteRequest.Name.Trim(),
+            Color.White
+        );
+
+        var blackPlayer = new Player(
+            blackRequest.Name.Trim(),
+            Color.Black
+        );
+
+        var game = new Game(
+            whitePlayer,
+            blackPlayer
+        );
+
         game.StartGame();
 
         var gameId = Guid.NewGuid().ToString();
-        _activeGames.TryAdd(gameId, game);
 
-        return Ok(new { GameId = gameId, Message = "Game started" });
+        if (!_activeGames.TryAdd(gameId, game))
+        {
+            return StatusCode(
+                StatusCodes.Status500InternalServerError,
+                "Gagal membuat sesi game."
+            );
+        }
+
+        return Ok(new
+        {
+            GameId = gameId,
+            WhitePlayer = whitePlayer.Name,
+            BlackPlayer = blackPlayer.Name,
+            CurrentTurn = game.GetColorsPlayer().ToString(),
+            Message = "Player vs Player game started"
+        });
     }
 
     [HttpGet("{gameId}/board")]
-    public ActionResult<BoardDTO> GetBoard(string gameId)
+    public IActionResult GetBoard(string gameId)
     {
         if (!_activeGames.TryGetValue(gameId, out var game))
             return NotFound("Game session not found.");
 
         var board = game.GetCurrentBoard();
-        var boardDto = _mapper.Map<BoardDTO>(board);
 
-        return Ok(boardDto);
+        var modelPiece = board.Tiles[0].ChessPiece;
+        var boardDto = _mapper.Map<BoardDTO>(board);
+        var dtoPiece = boardDto.Tiles.First().ChessPiece;
+
+        return Ok(new
+        {
+            EnumWhiteValue = (int)Color.White,
+            EnumBlackValue = (int)Color.Black,
+
+            ModelColor = modelPiece?.PieceColor.ToString(),
+            ModelColorValue = modelPiece is null
+                ? (int?)null
+                : (int)modelPiece.PieceColor,
+
+            DtoColor = dtoPiece?.PieceColor.ToString(),
+            DtoColorValue = dtoPiece is null
+                ? (string?)null
+                : dtoPiece.PieceColor,
+
+            Board = boardDto
+        });
     }
 
     // ==========================================
@@ -132,16 +205,24 @@ public class ChessController : ControllerBase
         if (availableMoves.Exists(m => m.row == toPosition.row && m.Column == toPosition.Column))
         {
             var move = _mapper.Map<Move>(moveDto);
+            if (!game.MakeMove(move))
+            {
+                return BadRequest(new
+                {
+                    message = "Langkah ditolak oleh game.",
+                    from = moveDto.From,
+                    to = moveDto.To
+                });
+            }
 
             var boardDto = _mapper.Map<BoardDTO>(game.GetCurrentBoard());
-            game.MakeMove(move);
             await _hubContext.Clients
                 .Group($"game:{gameId}")
                 .SendAsync("BoardUpdated", new
                 {
                     GameId = gameId,
                     Board = boardDto,
-                    CurrentTurn = game.GetColorsPlayer(),
+                    CurrentTurn = game.GetColorsPlayer().ToString(),
                     LastMove = moveDto
                 });
 

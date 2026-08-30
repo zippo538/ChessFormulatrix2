@@ -2,7 +2,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Chessboard } from 'react-chessboard';
 import {
-  Bot,
   ChevronRight,
   CircleHelp,
   Flag,
@@ -39,14 +38,6 @@ import type {
 } from './types/chess';
 
 const INITIAL_POSITION = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR';
-const pieceValue: Record<PieceName, number> = {
-  Pawn: 10,
-  Knight: 30,
-  Bishop: 30,
-  Rook: 50,
-  Queen: 90,
-  King: 900,
-};
 const promotionPieces = ['Queen', 'Rook', 'Bishop', 'Knight'] as const;
 const promotionSymbols: Record<(typeof promotionPieces)[number], string> = {
   Queen: '♕',
@@ -75,15 +66,12 @@ function getMessage(error: unknown): string {
   return 'Terjadi kesalahan yang tidak diketahui.';
 }
 
-function wait(milliseconds: number) {
-  return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
-}
-
 export default function App() {
   const [phase, setPhase] = useState<GamePhase>('setup');
   const [setupOpen, setSetupOpen] = useState(true);
   const [gameId, setGameId] = useState<string>();
-  const [playerName, setPlayerName] = useState('Pemain Putih');
+  const [whitePlayerName, setWhitePlayerName] = useState('Pemain Putih');
+  const [blackPlayerName, setBlackPlayerName] = useState('Pemain Hitam');
   const [minutes, setMinutes] = useState(10);
   const [increment, setIncrement] = useState(0);
   const [whiteMs, setWhiteMs] = useState(10 * 60_000);
@@ -272,76 +260,24 @@ export default function App() {
     });
   }
 
-  async function findAiMove(id: string, snapshot: BoardState): Promise<MoveDto | undefined> {
-    const candidates: MoveDto[] = [];
-    const blackSquares = Object.entries(snapshot.pieces)
-        .filter(([, piece]) => piece.color === 'Black')
-        .map(([square]) => square);
-
-    for (const square of blackSquares) {
-      try {
-        const move = await chessApi.getSuggestion(id, squareToPosition(square));
-        if (move) candidates.push(move);
-      } catch (error) {
-        if (!(error instanceof ApiError) || error.status !== 404) throw error;
-      }
-    }
-
-    if (candidates.length > 0) {
-      return candidates.sort((a, b) => {
-        const aTarget = snapshot.pieces[positionToSquare(a.to)];
-        const bTarget = snapshot.pieces[positionToSquare(b.to)];
-        const aScore = aTarget ? pieceValue[aTarget.type] : 0;
-        const bScore = bTarget ? pieceValue[bTarget.type] : 0;
-        return bScore - aScore;
-      })[0];
-    }
-
-    for (const square of blackSquares) {
-      try {
-        const from = squareToPosition(square);
-        const moves = await chessApi.getValidMoves(id, from);
-        if (moves[0]) return { from, to: moves[0], promotionType: 'Queen' };
-      } catch (error) {
-        if (!(error instanceof ApiError) || error.status !== 400) throw error;
-      }
-    }
-    return undefined;
-  }
-
-  async function playAiTurn(id: string, snapshot: BoardState) {
-    setNotice('AI Bot sedang menghitung langkah terbaik…');
-    await wait(450);
-    if (phaseRef.current !== 'playing') return;
-    const aiMove = await findAiMove(id, snapshot);
-    if (!aiMove) throw new Error('AI Bot tidak menemukan langkah legal.');
-    const response = await chessApi.makeMove(id, {
-      ...aiMove,
-      promotionType: aiMove.promotionType || 'Queen',
-    });
-    await loadSnapshot(id);
-    if (response.gameOver) {
-      finishGame(response.reason, response.winner);
-      setNotice('Pertandingan selesai.');
-      return;
-    }
-    setCurrentTurn(response.currentTurn || 'White');
-    setNotice('Giliran Anda. Pilih bidak Putih.');
-  }
-
-  async function playMove(fromSquare: string, toSquare: string, promotionType: PieceName = 'Queen') {
+  async function playMove(fromSquare: string, toSquare: string, promotionType?: PieceName) {
     if (!gameId || busy || phase !== 'playing') return;
     setBusy(true);
     setSuggestedMove(undefined);
     try {
-      const response = await chessApi.makeMove(gameId, {
+      const move: MoveDto = {
         from: squareToPosition(fromSquare),
         to: squareToPosition(toSquare),
-        promotionType,
-      });
+      };
+      if (promotionType) {
+        move.promotionType = promotionType;
+      }
+
+      const response = await chessApi.makeMove(gameId, move);
+
       setSelectedSquare(undefined);
       setValidMoves([]);
-      const snapshot = await loadSnapshot(gameId);
+      await loadSnapshot(gameId);
       setApiOffline(false);
       if (response.gameOver) {
         finishGame(response.reason, response.winner);
@@ -351,8 +287,7 @@ export default function App() {
 
       const nextTurn = response.currentTurn || opposite(currentTurn);
       setCurrentTurn(nextTurn);
-      if (nextTurn === 'Black') await playAiTurn(gameId, snapshot);
-      else setNotice(`Giliran ${colorLabel(nextTurn)}.`);
+      setNotice(`Giliran ${colorLabel(nextTurn)}. Pilih bidak ${colorLabel(nextTurn)}.`);
     } catch (error) {
       setApiOffline(true);
       setNotice(getMessage(error));
@@ -373,7 +308,7 @@ export default function App() {
   }
 
   async function selectSquare(square: string) {
-    if (!gameId || busy || phase !== 'playing' || currentTurn !== 'White') return;
+    if (!gameId || busy || phase !== 'playing') return;
     if (selectedSquare && validMoves.includes(square)) {
       prepareMove(selectedSquare, square);
       return;
@@ -403,7 +338,12 @@ export default function App() {
   }
 
   async function handleDrop(sourceSquare: string, targetSquare: string | null) {
-    if (!targetSquare || !gameId || phase !== 'playing' || busy || currentTurn !== 'White') return;
+    if (!targetSquare || !gameId || phase !== 'playing' || busy) return;
+    const movingPiece = board.pieces[sourceSquare];
+    if (!movingPiece || movingPiece.color !== currentTurn) {
+      setNotice(`Sekarang giliran ${colorLabel(currentTurn)}.`);
+      return;
+    }
     let moves = validMoves;
     if (selectedSquare !== sourceSquare) {
       try {
@@ -436,9 +376,10 @@ export default function App() {
   }
 
   async function startGame() {
-    const safeName = playerName.trim();
-    if (!safeName) {
-      setSetupError('Nama pemain harus diisi.');
+    const safeWhiteName = whitePlayerName.trim();
+    const safeBlackName = blackPlayerName.trim();
+    if (!safeWhiteName || !safeBlackName) {
+      setSetupError('Nama pemain Putih dan Hitam harus diisi.');
       return;
     }
     const safeMinutes = Math.min(180, Math.max(1, Number(minutes) || 10));
@@ -446,7 +387,7 @@ export default function App() {
     setBusy(true);
     setSetupError(undefined);
     try {
-      const id = await chessApi.createGame(safeName, safeMinutes);
+      const id = await chessApi.createGame(safeWhiteName, safeBlackName, safeMinutes);
       setGameId(id);
       const initialTime = safeMinutes * 60_000;
       clocksRef.current = { white: initialTime, black: initialTime };
@@ -471,7 +412,7 @@ export default function App() {
       setPhase('playing');
       setSetupOpen(false);
       setApiOffline(false);
-      setNotice('Giliran Anda. Pilih bidak Putih.');
+      setNotice('Giliran Putih. Pilih bidak Putih.');
     } catch (error) {
       setApiOffline(true);
       setSetupError(`${getMessage(error)} Pastikan Chess API sedang berjalan.`);
@@ -486,8 +427,8 @@ export default function App() {
     setBusy(true);
     try {
       const response = await chessApi.resign(gameId);
-      finishGame(response.reason || 'Resigned', response.winner || 'Black');
-      setNotice('Anda menyerah. Pertandingan telah berakhir.');
+      finishGame(response.reason || 'Resigned', response.winner || colorLabel(opposite(currentTurn)));
+      setNotice(`${colorLabel(currentTurn)} menyerah. Pertandingan telah berakhir.`);
       setApiOffline(false);
     } catch (error) {
       setApiOffline(true);
@@ -534,14 +475,13 @@ export default function App() {
     canDragPiece: ({ piece }: { piece: { pieceType: string } }) =>
         phase === 'playing' &&
         !busy &&
-        currentTurn === 'White' &&
-        piece.pieceType.startsWith('w'),
+        piece.pieceType.startsWith(currentTurn === 'White' ? 'w' : 'b'),
     onPieceDrag: ({ square }: { square: string | null }) => {
       if (square) void selectSquare(square);
     },
     onPieceDrop: ({ sourceSquare, targetSquare }: { sourceSquare: string; targetSquare: string | null }) => {
       void handleDrop(sourceSquare, targetSquare);
-      return false;
+      return true;
     },
     onSquareClick: ({ square }: { square: string }) => void selectSquare(square),
   };
@@ -577,7 +517,7 @@ export default function App() {
                 <span className="live-dot" />
                 {phase === 'playing' ? `Giliran ${colorLabel(currentTurn)}` : phase === 'over' ? 'Pertandingan selesai' : 'Menunggu game'}
               </div>
-              <span>{minutes}+{increment} • vs AI</span>
+              <span>{minutes}+{increment} • Pemain vs Pemain</span>
             </div>
 
             {result && (
@@ -592,10 +532,10 @@ export default function App() {
             )}
 
             <div className={currentTurn === 'Black' && phase === 'playing' ? 'player-strip player-strip--active' : 'player-strip'}>
-              <div className="avatar avatar--bot"><Bot size={21} /></div>
+              <div className="avatar"><UserRound size={21} /></div>
               <div className="player-strip__identity">
-                <strong>AI Bot</strong>
-                <span>{busy && currentTurn === 'Black' ? 'Sedang berpikir…' : 'Hitam'}</span>
+                <strong>{blackPlayerName || 'Pemain Hitam'}</strong>
+                <span>Hitam</span>
               </div>
               <ChessClock milliseconds={blackMs} active={currentTurn === 'Black' && phase === 'playing'} label="Waktu Hitam" />
             </div>
@@ -612,8 +552,8 @@ export default function App() {
             <div className={currentTurn === 'White' && phase === 'playing' ? 'player-strip player-strip--active' : 'player-strip'}>
               <div className="avatar"><UserRound size={21} /></div>
               <div className="player-strip__identity">
-                <strong>{playerName || 'Pemain Putih'}</strong>
-                <span>Putih • Anda</span>
+                <strong>{whitePlayerName || 'Pemain Putih'}</strong>
+                <span>Putih</span>
               </div>
               <ChessClock milliseconds={whiteMs} active={currentTurn === 'White' && phase === 'playing'} label="Waktu Putih" />
             </div>
@@ -679,12 +619,14 @@ export default function App() {
 
         <GameSetup
             open={setupOpen}
-            name={playerName}
+            whitePlayerName={whitePlayerName}
+            blackPlayerName={blackPlayerName}
             minutes={minutes}
             increment={increment}
             loading={busy}
             error={setupError}
-            onNameChange={setPlayerName}
+            onWhitePlayerNameChange={setWhitePlayerName}
+            onBlackPlayerNameChange={setBlackPlayerName}
             onMinutesChange={setMinutes}
             onIncrementChange={setIncrement}
             onSubmit={startGame}
@@ -713,7 +655,7 @@ export default function App() {
               <section className="small-dialog" role="alertdialog" aria-modal="true" aria-labelledby="resign-title">
                 <div className="dialog-icon dialog-icon--danger"><Flag size={22} /></div>
                 <h2 id="resign-title">Menyerah sekarang?</h2>
-                <p>AI Bot akan dinyatakan menang dan sesi ini berakhir.</p>
+                <p>{colorLabel(opposite(currentTurn))} akan dinyatakan menang dan sesi ini berakhir.</p>
                 <div className="dialog-actions">
                   <button className="secondary-button" type="button" onClick={() => setConfirmResign(false)}>Lanjut bermain</button>
                   <button className="danger-button danger-button--solid" type="button" onClick={resign}>Ya, menyerah</button>

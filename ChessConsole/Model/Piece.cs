@@ -5,7 +5,7 @@ namespace ChessConsole.Model;
 
 public class Piece : IPiece
 {
-    public new Color PieceColor { get; }
+    public Color PieceColor { get; }
     public PieceType Type { get; }
     public bool Hasmove { get; set; }
 

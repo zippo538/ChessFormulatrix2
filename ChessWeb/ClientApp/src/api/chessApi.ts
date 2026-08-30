@@ -173,14 +173,41 @@ function normalizeMoveResponse(payload: unknown): MoveResponse {
 }
 
 export const chessApi = {
-  async createGame(name: string, minutes: number): Promise<string> {
-    const params = new URLSearchParams({ minutes: String(minutes) });
+  async createGame(
+      whitePlayerName: string,
+      blackPlayerName: string,
+      minutes: number
+  ): Promise<string> {
+    const params = new URLSearchParams({
+      minutes: String(minutes),
+    });
+
     const data = await request(`?${params}`, {
       method: 'POST',
-      body: JSON.stringify({ name }),
+      body: JSON.stringify([
+        {
+          name: whitePlayerName,
+          playerColor: 'White',
+        },
+        {
+          name: blackPlayerName,
+          playerColor: 'Black',
+        },
+      ]),
     });
-    const gameId = readString(data, ['gameId', 'GameId']);
-    if (!gameId) throw new ApiError('GameId tidak ditemukan pada respons API.', 500);
+
+    const gameId = readString(data, [
+      'gameId',
+      'GameId',
+    ]);
+
+    if (!gameId) {
+      throw new ApiError(
+          'GameId tidak ditemukan pada respons API.',
+          500
+      );
+    }
+
     return gameId;
   },
 
@@ -200,13 +227,18 @@ export const chessApi = {
   },
 
   async makeMove(gameId: string, move: MoveDto): Promise<MoveResponse> {
+    const body: Record<string, unknown> = {
+      from: { row: move.from.row, column: move.from.column },
+      to: { row: move.to.row, column: move.to.column },
+    };
+
+    if (move.promotionType !== undefined) {
+      body.promotionType = move.promotionType;
+    }
+
     const data = await request(`/${gameId}/moves`, {
       method: 'POST',
-      body: JSON.stringify({
-        from: { row: move.from.row, column: move.from.column },
-        to: { row: move.to.row, column: move.to.column },
-        promotionType: move.promotionType || 'Queen',
-      }),
+      body: JSON.stringify(body),
     });
     return normalizeMoveResponse(data);
   },

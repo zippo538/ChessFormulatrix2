@@ -21,10 +21,16 @@ public class Game : IGame
     public event Action? OnGameOver;
     public GameOverResult GameResult;
 
-    public Game(Player whitePlayer, Player blackPlayer)
+    // true jika Hitam dikendalikan oleh engine Bot (lihat GetBestMove/MakeBotMove),
+    // false untuk player vs player (kedua sisi manusia). Default true agar
+    // pemakaian lama (mis. Program.cs versi single-player) tetap berjalan.
+    public bool VsBot { get; private set; }
+
+    public Game(Player whitePlayer, Player blackPlayer, bool vsBot = true)
         {
         WhitePlayer = whitePlayer;
         BlackPlayer = blackPlayer;
+        VsBot = vsBot;
         _board = new Board();
         InitializeBoard();
     }
@@ -90,9 +96,8 @@ public class Game : IGame
 
     
 
-    public void MakeMove(Move move)
+    public bool MakeMove(Move move)
     {
-        // Jangan izinkan langkah memakai selection lama atau posisi asal palsu.
         if (_selectedPiece == null ||
             _availableMoves == null ||
             !IsInsideBoard(move.From) ||
@@ -100,39 +105,48 @@ public class Game : IGame
             move.From.row != _selectedPostition.row ||
             move.From.Column != _selectedPostition.Column ||
             _selectedPiece.PieceColor != CurrentPlayer.PlayerColor ||
-            !_availableMoves.Contains(move.To))
+            !_availableMoves.Any(position =>
+                position.row == move.To.row &&
+                position.Column == move.To.Column)
+            )
         {
-            return;
+            return false;
         }
 
-        Tile fromTile = _board.Tiles[move.From.row * 8 + move.From.Column];
-        Tile toTile = _board.Tiles[move.To.row * 8 + move.To.Column];
+        Tile fromTile =
+            _board.Tiles[move.From.row * 8 + move.From.Column];
+
+        Tile toTile =
+            _board.Tiles[move.To.row * 8 + move.To.Column];
 
         if (!ReferenceEquals(fromTile.ChessPiece, _selectedPiece))
         {
             ClearSelection();
-            return;
+            return false;
         }
 
         var movedPieceType = _selectedPiece.Type;
         var movedPieceColor = _selectedPiece.PieceColor;
         var capturedPieceType = toTile.ChessPiece?.Type;
-        var isEnPassant = movedPieceType == PieceType.Pawn &&
-                          move.From.Column != move.To.Column &&
-                          toTile.ChessPiece == null;
+
+        var isEnPassant =
+            movedPieceType == PieceType.Pawn &&
+            move.From.Column != move.To.Column &&
+            toTile.ChessPiece == null;
 
         if (isEnPassant)
         {
             capturedPieceType = PieceType.Pawn;
             move.Type = MoveType.EnPassent;
         }
-        
-        //detection castling move
-        bool isCastling = _selectedPiece.Type == PieceType.King && Math.Abs(move.To.Column - move.From.Column) == 2;
+
+        bool isCastling =
+            _selectedPiece.Type == PieceType.King &&
+            Math.Abs(move.To.Column - move.From.Column) == 2;
+
         if (isCastling)
-        {
-            move.Type = MoveType.Castling; 
-        }
+            move.Type = MoveType.Castling;
+
         RemoveEnPassantPawn(move);
         MoveCastleRook(move);
 
@@ -143,13 +157,20 @@ public class Game : IGame
         MoveAndPromote(move);
 
         _lastMove = move;
+
         _moveHistory.Add(new MoveHistory(
             move,
             movedPieceType,
             movedPieceColor,
             capturedPieceType));
+
         CheckMoveResult();
-        SwitchTurn();
+
+        if (GameResult.Type == GameOverType.None)
+            SwitchTurn();
+
+        ClearSelection();
+        return true;
     }
 
 
@@ -757,5 +778,202 @@ public class Game : IGame
         }
         return score;
     }
-    
+
+    // ==========================================
+    // BOT / AI ENGINE (Minimax + Alpha-Beta Pruning)
+    // Murni ditulis dengan tipe & logic bawaan .NET, tanpa engine eksternal
+    // (Stockfish, dll). Memanfaatkan ulang EvaluateBoard() & GetLegalMoves()
+    // yang sudah ada di kelas ini.
+    // ==========================================
+
+    public const int DefaultBotDepth = 3;
+
+    private static Color Opponent(Color color) =>
+        color == Color.White ? Color.Black : Color.White;
+
+    /// <summary>
+    /// Mengumpulkan seluruh langkah legal (asal & tujuan) untuk satu warna,
+    /// berdasarkan _board yang SEDANG aktif (bisa papan asli atau papan simulasi).
+    /// </summary>
+    private List<(Postition From, Postition To)> GetAllLegalMovesWithOrigin(Color color)
+    {
+        var result = new List<(Postition, Postition)>();
+        for (int r = 0; r < 8; r++)
+        {
+            for (int c = 0; c < 8; c++)
+            {
+                var piece = _board.Tiles[r * 8 + c].ChessPiece;
+                if (piece != null && piece.PieceColor == color)
+                {
+                    var from = new Postition { row = r, Column = c };
+                    var moves = GetLegalMoves(from);
+                    if (moves != null)
+                    {
+                        foreach (var to in moves)
+                            result.Add((from, to));
+                    }
+                }
+            }
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// Menerapkan sebuah langkah langsung ke _board yang sedang aktif (tanpa
+    /// menyentuh _selectedPiece/_moveHistory/timer), khusus dipakai untuk
+    /// simulasi pencarian Minimax. Menangani castling, en passant, dan
+    /// promosi otomatis ke Queen (asumsi terbaik saat simulasi).
+    /// </summary>
+    private void ApplySimulatedMove(Postition from, Postition to)
+    {
+        var movingPiece = _board.Tiles[from.row * 8 + from.Column].ChessPiece;
+        if (movingPiece == null) return;
+
+        // En passant: pion bergerak diagonal ke petak kosong
+        bool isEnPassant = movingPiece.Type == PieceType.Pawn &&
+                            from.Column != to.Column &&
+                            _board.Tiles[to.row * 8 + to.Column].ChessPiece == null;
+        if (isEnPassant)
+        {
+            _board.Tiles[from.row * 8 + to.Column].ChessPiece = null;
+        }
+
+        // Castling: raja bergerak 2 kolom
+        bool isCastling = movingPiece.Type == PieceType.King &&
+                           Math.Abs(to.Column - from.Column) == 2;
+        if (isCastling)
+        {
+            if (to.Column > from.Column)
+            {
+                var rook = _board.Tiles[from.row * 8 + 7].ChessPiece;
+                _board.Tiles[from.row * 8 + 5].ChessPiece = rook;
+                _board.Tiles[from.row * 8 + 7].ChessPiece = null;
+                if (rook != null) rook.Hasmove = true;
+            }
+            else
+            {
+                var rook = _board.Tiles[from.row * 8 + 0].ChessPiece;
+                _board.Tiles[from.row * 8 + 3].ChessPiece = rook;
+                _board.Tiles[from.row * 8 + 0].ChessPiece = null;
+                if (rook != null) rook.Hasmove = true;
+            }
+        }
+
+        _board.Tiles[to.row * 8 + to.Column].ChessPiece = movingPiece;
+        _board.Tiles[from.row * 8 + from.Column].ChessPiece = null;
+        movingPiece.Hasmove = true;
+
+        // Promosi otomatis ke Queen saat simulasi
+        if (movingPiece.Type == PieceType.Pawn && (to.row == 0 || to.row == 7))
+        {
+            _board.Tiles[to.row * 8 + to.Column].ChessPiece =
+                new Piece(movingPiece.PieceColor, PieceType.Queen);
+        }
+    }
+
+    /// <summary>
+    /// Negamax + Alpha-Beta Pruning. Mengembalikan skor terbaik yang bisa
+    /// dicapai oleh `colorToMove`, dari sudut pandang `colorToMove` sendiri
+    /// (semakin besar semakin baik untuknya).
+    /// </summary>
+    private int Negamax(int depth, int alpha, int beta, Color colorToMove)
+    {
+        var legalMoves = GetAllLegalMovesWithOrigin(colorToMove);
+
+        if (legalMoves.Count == 0)
+        {
+            // Tidak ada langkah: skakmat atau buntu (stalemate)
+            if (IsKingInCheck(colorToMove))
+                return -100000 - depth; // Skakmat = seburuk-buruknya, mati lebih cepat lebih "buruk"
+            return 0; // Stalemate = seri
+        }
+
+        if (depth == 0)
+        {
+            int perspective = colorToMove == Color.White ? 1 : -1;
+            return perspective * EvaluateBoard(_board);
+        }
+
+        Board originalBoard = _board;
+        int best = int.MinValue;
+
+        foreach (var (from, to) in legalMoves)
+        {
+            _board = BoardHelper.Copy(originalBoard);
+            ApplySimulatedMove(from, to);
+
+            int score = -Negamax(depth - 1, -beta, -alpha, Opponent(colorToMove));
+
+            _board = originalBoard;
+
+            if (score > best) best = score;
+            if (best > alpha) alpha = best;
+            if (alpha >= beta) break; // Alpha-beta pruning
+        }
+
+        return best;
+    }
+
+    /// <summary>
+    /// Mencari langkah terbaik untuk `color` menggunakan Minimax + Alpha-Beta
+    /// Pruning sedalam `depth` ply. Tidak mengubah state game sama sekali
+    /// (murni pencarian di atas papan simulasi).
+    /// </summary>
+    public Move? GetBestMove(Color color, int depth = DefaultBotDepth)
+    {
+        var legalMoves = GetAllLegalMovesWithOrigin(color);
+        if (legalMoves.Count == 0) return null;
+
+        Board originalBoard = _board;
+        Move? bestMove = null;
+        int bestScore = int.MinValue;
+        int alpha = int.MinValue;
+        int beta = int.MaxValue;
+
+        foreach (var (from, to) in legalMoves)
+        {
+            _board = BoardHelper.Copy(originalBoard);
+            ApplySimulatedMove(from, to);
+
+            int score = -Negamax(depth - 1, -beta, -alpha, Opponent(color));
+
+            _board = originalBoard;
+
+            if (score > bestScore || bestMove == null)
+            {
+                bestScore = score;
+                bestMove = new Move
+                {
+                    From = from,
+                    To = to,
+                    Type = MoveType.Normal,
+                    PromptionType = PieceType.Queen
+                };
+            }
+
+            if (score > alpha) alpha = score;
+        }
+
+        return bestMove;
+    }
+
+    /// <summary>
+    /// Menjalankan giliran Bot untuk CurrentPlayer saat ini: mencari best
+    /// move via engine internal, lalu benar-benar mengeksekusinya lewat alur
+    /// TrySelectPiece -> MakeMove yang sudah ada (sehingga timer, history,
+    /// dan pengecekan checkmate/stalemate tetap konsisten dengan langkah
+    /// manusia biasa).
+    /// </summary>
+    public Move? MakeBotMove(int depth = DefaultBotDepth)
+    {
+        var color = CurrentPlayer.PlayerColor;
+        var bestMove = GetBestMove(color, depth);
+        if (bestMove == null) return null;
+
+        if (!TrySelectPiece(bestMove.Value.From))
+            return null;
+
+        var success = MakeMove(bestMove.Value);
+        return success ? bestMove : null;
+    }
 }
