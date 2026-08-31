@@ -45,13 +45,26 @@ public class ChessController : ControllerBase
             : (string.IsNullOrWhiteSpace(request.BlackName) ? "Pemain Hitam" : request.BlackName);
         var blackPlayer = new Player(blackName, Color.Black);
 
-        var game = new Game(whitePlayer, blackPlayer, request.VsBot);
+        var minutes = Math.Clamp(request.Minutes, 1, 180);
+        var game = new Game(
+            whitePlayer,
+            blackPlayer,
+            request.VsBot,
+            minutes,
+            request.ClockEnabled);
         game.StartGame();
 
         var gameId = Guid.NewGuid().ToString();
         _activeGames.TryAdd(gameId, game);
 
-        return Ok(new { GameId = gameId, Message = "Game started", VsBot = request.VsBot });
+        return Ok(new
+        {
+            GameId = gameId,
+            Message = "Game started",
+            VsBot = request.VsBot,
+            Minutes = minutes,
+            ClockEnabled = request.ClockEnabled
+        });
     }
 
     [HttpGet("{gameId}/board")]
@@ -96,6 +109,18 @@ public class ChessController : ControllerBase
         
         if (!_activeGames.TryGetValue(gameId, out var game))
             return NotFound("Game session not found.");
+
+        var timeStatus = game.CheckTimeStatus();
+        if (timeStatus.IsExpired)
+        {
+            return Conflict(new
+            {
+                GameOver = true,
+                Reason = GameOverType.Timeout.ToString(),
+                Winner = game.GameResult.Winner.ToString(),
+                TimedOutPlayer = timeStatus.TimedOutColor?.ToString()
+            });
+        }
 
         // Validasi dan parsing PromotionType
         PieceType promotion = PieceType.None;
@@ -224,6 +249,18 @@ public class ChessController : ControllerBase
         if (!game.VsBot)
             return BadRequest("Game ini adalah mode player vs player, tidak ada Bot untuk dijalankan.");
 
+        var timeStatus = game.CheckTimeStatus();
+        if (timeStatus.IsExpired)
+        {
+            return Conflict(new
+            {
+                GameOver = true,
+                Reason = GameOverType.Timeout.ToString(),
+                Winner = game.GameResult.Winner.ToString(),
+                TimedOutPlayer = timeStatus.TimedOutColor?.ToString()
+            });
+        }
+
         // Batasi depth agar pencarian Negamax tidak membebani server.
         var safeDepth = Math.Clamp(depth, 1, 4);
         var botColor = game.CurrentPlayer.PlayerColor;
@@ -259,7 +296,33 @@ public class ChessController : ControllerBase
     }
 
     // ==========================================
-    // 5. GAME ACTIONS
+    // 5. TIME STATUS
+    // ==========================================
+
+    [HttpGet("{gameId}/time-status")]
+    public IActionResult GetTimeStatus(string gameId)
+    {
+        if (!_activeGames.TryGetValue(gameId, out var game))
+            return NotFound("Game session not found.");
+
+        var status = game.CheckTimeStatus();
+        return Ok(new
+        {
+            WhiteRemainingSeconds = Math.Max(0, Math.Ceiling(status.WhiteRemaining.TotalSeconds)),
+            BlackRemainingSeconds = Math.Max(0, Math.Ceiling(status.BlackRemaining.TotalSeconds)),
+            CurrentTurn = game.GetColorsPlayer().ToString(),
+            TimeExpired = status.IsExpired,
+            TimedOutPlayer = status.TimedOutColor?.ToString(),
+            GameOver = game.GameResult.Type != GameOverType.None,
+            Reason = game.GameResult.Type.ToString(),
+            Winner = game.GameResult.Type == GameOverType.None
+                ? null
+                : game.GameResult.Winner.ToString()
+        });
+    }
+
+    // ==========================================
+    // 6. GAME ACTIONS
     // ==========================================
 
     [HttpPost("{gameId}/resign")]
@@ -288,31 +351,5 @@ public class ChessController : ControllerBase
         var historyDto = _mapper.Map<List<MoveHistoryDTO>>(history);
         
         return Ok(historyDto);
-    }
-    
-    // ==========================================
-    // 6. TIME STATUS
-    // ==========================================
-
-    [HttpGet("{gameId}/time-status")]
-    public IActionResult GetTimeStatus(string gameId)
-    {
-        if (!_activeGames.TryGetValue(gameId, out var game))
-            return NotFound("Game session not found.");
-
-        var status = game.CheckTimeStatus();
-        return Ok(new
-        {
-            WhiteRemainingSeconds = Math.Max(0, Math.Ceiling(status.WhiteRemaining.TotalSeconds)),
-            BlackRemainingSeconds = Math.Max(0, Math.Ceiling(status.BlackRemaining.TotalSeconds)),
-            CurrentTurn = game.GetColorsPlayer().ToString(),
-            TimeExpired = status.IsExpired,
-            TimedOutPlayer = status.TimedOutColor?.ToString(),
-            GameOver = game.GameResult.Type != GameOverType.None,
-            Reason = game.GameResult.Type.ToString(),
-            Winner = game.GameResult.Type == GameOverType.None
-                ? null
-                : game.GameResult.Winner.ToString()
-        });
     }
 }

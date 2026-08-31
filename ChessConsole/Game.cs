@@ -21,9 +21,10 @@ public class Game : IGame
     private Move _lastMove;
     private readonly List<MoveHistory> _moveHistory = new();
     private readonly object _clockSync = new();
-    private static readonly TimeSpan InitialPlayerTime = TimeSpan.FromMinutes(10);
-    private TimeSpan _whiteRemaining = InitialPlayerTime;
-    private TimeSpan _blackRemaining = InitialPlayerTime;
+    private readonly TimeSpan _initialPlayerTime;
+    private readonly bool _clockEnabled;
+    private TimeSpan _whiteRemaining;
+    private TimeSpan _blackRemaining;
     private DateTimeOffset _turnStartedAt;
     private bool _clockRunning;
     public event Action? OnGameOver;
@@ -35,11 +36,20 @@ public class Game : IGame
     // pemakaian lama (mis. Program.cs versi single-player) tetap berjalan.
     public bool VsBot { get; private set; }
 
-    public Game(Player whitePlayer, Player blackPlayer, bool vsBot = true)
-        {
+    public Game(
+        Player whitePlayer,
+        Player blackPlayer,
+        bool vsBot = true,
+        int initialMinutes = 10,
+        bool clockEnabled = true)
+    {
         WhitePlayer = whitePlayer;
         BlackPlayer = blackPlayer;
         VsBot = vsBot;
+        _initialPlayerTime = TimeSpan.FromMinutes(Math.Clamp(initialMinutes, 1, 180));
+        _clockEnabled = clockEnabled;
+        _whiteRemaining = _initialPlayerTime;
+        _blackRemaining = _initialPlayerTime;
         _board = new Board();
         InitializeBoard();
     }
@@ -84,21 +94,19 @@ public class Game : IGame
     public void StartGame()
     {
         CurrentPlayer = WhitePlayer!;
-        WhiteTimer = new ChessTimer(InitialPlayerTime);
-        BlackTimer = new ChessTimer(InitialPlayerTime);
+        WhiteTimer = new ChessTimer(_initialPlayerTime);
+        BlackTimer = new ChessTimer(_initialPlayerTime);
 
         WhiteTimer.OnTimeOut += OnWhiteTimeOut;
         BlackTimer.OnTimeOut += OnBlackTimeOut;
 
         lock (_clockSync)
         {
-            _whiteRemaining = InitialPlayerTime;
-            _blackRemaining = InitialPlayerTime;
+            _whiteRemaining = _initialPlayerTime;
+            _blackRemaining = _initialPlayerTime;
             _turnStartedAt = DateTimeOffset.UtcNow;
-            _clockRunning = true;
+            _clockRunning = _clockEnabled;
         }
-
-        WhiteTimer.StartTimer();
     }
 
     public void Resign(Player player)
@@ -199,21 +207,11 @@ public class Game : IGame
         var timeStatus = CheckTimeStatus();
         if (timeStatus.IsExpired) return;
 
-        if (CurrentPlayer == WhitePlayer)
-        {
-            WhiteTimer.StopTimer();
-            BlackTimer.StartTimer();
-            CurrentPlayer = BlackPlayer!;
-        }
-        else
-        {
-            BlackTimer.StopTimer();
-            WhiteTimer.StartTimer();
-            CurrentPlayer = WhitePlayer!;
-        }
-
         lock (_clockSync)
         {
+            CurrentPlayer = CurrentPlayer == WhitePlayer
+                ? BlackPlayer!
+                : WhitePlayer!;
             _turnStartedAt = DateTimeOffset.UtcNow;
         }
     }
@@ -231,7 +229,7 @@ public class Game : IGame
 
     private void UpdateActiveClockLocked(DateTimeOffset now)
     {
-        if (!_clockRunning || CurrentPlayer == null) return;
+        if (!_clockEnabled || !_clockRunning || CurrentPlayer == null) return;
 
         var elapsed = now - _turnStartedAt;
         if (elapsed <= TimeSpan.Zero) return;

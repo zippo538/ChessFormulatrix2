@@ -77,7 +77,6 @@ export default function App() {
   const [blackName, setBlackName] = useState('Pemain Hitam');
   const isBotOpponent = mode === 'bot'; // hanya mode 'bot' yang lawannya AI
   const [minutes, setMinutes] = useState(10);
-  const [increment, setIncrement] = useState(0);
   const [whiteMs, setWhiteMs] = useState(10 * 60_000);
   const [blackMs, setBlackMs] = useState(10 * 60_000);
   const [currentTurn, setCurrentTurn] = useState<ChessColor>('White');
@@ -396,7 +395,6 @@ export default function App() {
       return;
     }
     const safeMinutes = Math.min(180, Math.max(1, Number(minutes) || 10));
-    const safeIncrement = Math.min(60, Math.max(0, Number(increment) || 0));
     setBusy(true);
     setSetupError(undefined);
     try {
@@ -404,6 +402,8 @@ export default function App() {
         whiteName: safeName || 'Anda',
         blackName: mode === 'pvp' ? safeBlackName : undefined,
         vsBot: mode === 'bot', // hanya mode 'bot' yang melibatkan Bot di backend
+        minutes: safeMinutes,
+        clockEnabled: mode !== 'practice',
       });
       setGameId(id);
       const initialTime = safeMinutes * 60_000;
@@ -411,7 +411,6 @@ export default function App() {
       setWhiteMs(initialTime);
       setBlackMs(initialTime);
       setMinutes(safeMinutes);
-      setIncrement(safeIncrement);
       setCurrentTurn('White');
       setHistory([]);
       setResult(undefined);
@@ -420,14 +419,7 @@ export default function App() {
       setSuggestedMove(undefined);
       await loadSnapshot(id);
       if (mode !== 'practice') {
-        const serverTime = await syncTimeStatus(id);
-        const serverMinutes = Math.max(
-            1,
-            Math.round(Math.max(serverTime.whiteRemainingSeconds, serverTime.blackRemainingSeconds) / 60),
-        );
-        // Backend saat ini memakai kontrol waktu tetap tanpa increment.
-        setMinutes(serverMinutes);
-        setIncrement(0);
+        await syncTimeStatus(id);
       }
       phaseRef.current = 'playing';
       setPhase('playing');
@@ -544,7 +536,7 @@ export default function App() {
               <span>
               {mode === 'practice'
                   ? 'Latihan • tanpa batas waktu'
-                  : `${minutes}+${increment} • ${mode === 'bot' ? 'vs AI' : 'vs Pemain'}`}
+                  : `${minutes} menit • ${mode === 'bot' ? 'vs AI' : 'vs Pemain'}`}
             </span>
             </div>
 
@@ -657,14 +649,12 @@ export default function App() {
             mode={mode}
             blackName={blackName}
             minutes={minutes}
-            increment={increment}
             loading={busy}
             error={setupError}
             onNameChange={setPlayerName}
             onModeChange={setMode}
             onBlackNameChange={setBlackName}
             onMinutesChange={setMinutes}
-            onIncrementChange={setIncrement}
             onSubmit={startGame}
         />
 

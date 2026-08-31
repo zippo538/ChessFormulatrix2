@@ -75,6 +75,8 @@ export type CreateGameOptions = {
   blackName?: string;
   // true = lawan AI Bot (default), false = player vs player lokal.
   vsBot: boolean;
+  minutes: number;
+  clockEnabled: boolean;
 };
 
 export type TimeStatusResponse = {
@@ -96,6 +98,8 @@ export const chessApi = {
         whiteName: options.whiteName,
         blackName: options.blackName,
         vsBot: options.vsBot,
+        minutes: options.minutes,
+        clockEnabled: options.clockEnabled,
       }),
     });
     const gameId = readString(data, ['gameId', 'GameId']);
