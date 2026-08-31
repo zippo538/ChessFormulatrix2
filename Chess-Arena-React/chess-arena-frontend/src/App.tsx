@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Chessboard } from 'react-chessboard';
 import {
   Bot,
@@ -17,6 +17,7 @@ import {
   X,
 } from 'lucide-react';
 import { ApiError, chessApi, colorLabel } from './api/chessApi';
+import type { TimeStatusResponse } from './api/chessApi';
 import { BoardCustomizer } from './components/BoardCustomizer';
 import { ChessClock } from './components/ChessClock';
 import { GameSetup } from './components/GameSetup';
@@ -102,6 +103,45 @@ export default function App() {
     phaseRef.current = phase;
   }, [phase]);
 
+  const finishGame = useCallback((reason?: string, winner?: string) => {
+    phaseRef.current = 'over';
+    setPhase('over');
+    setResult({
+      reason: reason || 'Permainan selesai',
+      winner: winner === 'White' || winner === 'Black' ? colorLabel(winner) : winner || 'Seri',
+    });
+  }, []);
+
+  const applyTimeStatus = useCallback(
+      (status: TimeStatusResponse) => {
+        const white = Math.max(0, status.whiteRemainingSeconds * 1000);
+        const black = Math.max(0, status.blackRemainingSeconds * 1000);
+        clocksRef.current = { white, black };
+        setWhiteMs(white);
+        setBlackMs(black);
+        if (status.currentTurn) setCurrentTurn(status.currentTurn);
+
+        if (status.gameOver) {
+          finishGame(status.reason, status.winner);
+          if (status.timeExpired && status.timedOutPlayer) {
+            setNotice(`Waktu ${colorLabel(status.timedOutPlayer)} habis.`);
+          } else {
+            setNotice('Pertandingan selesai.');
+          }
+        }
+      },
+      [finishGame],
+  );
+
+  const syncTimeStatus = useCallback(
+      async (id: string) => {
+        const status = await chessApi.getTimeStatus(id);
+        applyTimeStatus(status);
+        return status;
+      },
+      [applyTimeStatus],
+  );
+
   useEffect(() => {
     try {
       localStorage.setItem('chess-arena-palette', JSON.stringify(palette));
@@ -123,15 +163,41 @@ export default function App() {
       if (key === 'white') setWhiteMs(next);
       else setBlackMs(next);
 
-      if (next === 0 && phaseRef.current === 'playing') {
-        phaseRef.current = 'over';
-        setResult({ reason: 'Timeout', winner: colorLabel(opposite(currentTurn)) });
-        setNotice(`Waktu ${colorLabel(currentTurn)} habis.`);
-        setPhase('over');
-      }
     }, 200);
     return () => window.clearInterval(timer);
   }, [phase, currentTurn, mode]);
+
+  useEffect(() => {
+    if (!gameId || phase !== 'playing' || mode === 'practice') return;
+
+    let cancelled = false;
+    let inFlight = false;
+    const synchronize = async () => {
+      if (inFlight) return;
+      inFlight = true;
+      try {
+        const status = await chessApi.getTimeStatus(gameId);
+        if (!cancelled) {
+          applyTimeStatus(status);
+          setApiOffline(false);
+        }
+      } catch {
+        if (!cancelled) {
+          setApiOffline(true);
+          setNotice('Gagal menyinkronkan waktu dengan server.');
+        }
+      } finally {
+        inFlight = false;
+      }
+    };
+
+    void synchronize();
+    const polling = window.setInterval(() => void synchronize(), 1000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(polling);
+    };
+  }, [applyTimeStatus, gameId, mode, phase]);
 
   const historyRows = useMemo(() => {
     const rows: Array<{ number: number; white?: HistoryEntry; black?: HistoryEntry }> = [];
@@ -168,8 +234,8 @@ export default function App() {
       styles[square] = {
         ...styles[square],
         background: isCapture
-          ? `radial-gradient(transparent 58%, ${palette.accent} 60%, ${palette.accent} 71%, transparent 73%)`
-          : `radial-gradient(${palette.accent} 0 14%, transparent 16%)`,
+            ? `radial-gradient(transparent 58%, ${palette.accent} 60%, ${palette.accent} 71%, transparent 73%)`
+            : `radial-gradient(${palette.accent} 0 14%, transparent 16%)`,
       };
     });
     return styles;
@@ -184,29 +250,6 @@ export default function App() {
     setBoard(nextBoard);
     setHistory(moveHistory);
     return nextBoard;
-  }
-
-  function addIncrement(color: ChessColor) {
-    if (increment <= 0) return;
-    const amount = increment * 1000;
-    if (color === 'White') {
-      const next = clocksRef.current.white + amount;
-      clocksRef.current.white = next;
-      setWhiteMs(next);
-    } else {
-      const next = clocksRef.current.black + amount;
-      clocksRef.current.black = next;
-      setBlackMs(next);
-    }
-  }
-
-  function finishGame(reason?: string, winner?: string) {
-    phaseRef.current = 'over';
-    setPhase('over');
-    setResult({
-      reason: reason || 'Permainan selesai',
-      winner: winner === 'White' || winner === 'Black' ? colorLabel(winner) : winner || 'Seri',
-    });
   }
 
   // Catatan: dulu ada logika AI client-side (findAiMove/playAiTurn) yang
@@ -227,13 +270,10 @@ export default function App() {
         to: squareToPosition(toSquare),
         promotionType,
       });
-      if (mode !== 'practice') {
-        addIncrement(movingColor);
-        if (mode === 'bot' && response.botMove) addIncrement('Black');
-      }
       setSelectedSquare(undefined);
       setValidMoves([]);
       await loadSnapshot(gameId);
+      if (mode !== 'practice') await syncTimeStatus(gameId);
       setApiOffline(false);
       if (response.gameOver) {
         finishGame(response.reason, response.winner);
@@ -245,14 +285,24 @@ export default function App() {
       setCurrentTurn(nextTurn);
       if (isBotOpponent && response.botMove) {
         setNotice(
-          `AI Bot membalas: ${positionToSquare(response.botMove.from)} → ${positionToSquare(response.botMove.to)}.`,
+            `AI Bot membalas: ${positionToSquare(response.botMove.from)} → ${positionToSquare(response.botMove.to)}.`,
         );
       } else {
         setNotice(`Giliran ${colorLabel(nextTurn)}.`);
       }
     } catch (error) {
-      setApiOffline(true);
-      setNotice(getMessage(error));
+      if (error instanceof ApiError && error.status === 409 && gameId) {
+        try {
+          await syncTimeStatus(gameId);
+          setApiOffline(false);
+        } catch (syncError) {
+          setApiOffline(true);
+          setNotice(getMessage(syncError));
+        }
+      } else {
+        setApiOffline(true);
+        setNotice(getMessage(error));
+      }
     } finally {
       setBusy(false);
       setPendingPromotion(undefined);
@@ -289,9 +339,9 @@ export default function App() {
       setValidMoves(moves.map(positionToSquare));
       setSuggestedMove(undefined);
       setNotice(
-        moves.length > 0
-          ? `${moves.length} langkah legal untuk ${piece.type}.`
-          : 'Bidak ini tidak memiliki langkah legal.',
+          moves.length > 0
+              ? `${moves.length} langkah legal untuk ${piece.type}.`
+              : 'Bidak ini tidak memiliki langkah legal.',
       );
       setApiOffline(false);
     } catch (error) {
@@ -369,6 +419,16 @@ export default function App() {
       setValidMoves([]);
       setSuggestedMove(undefined);
       await loadSnapshot(id);
+      if (mode !== 'practice') {
+        const serverTime = await syncTimeStatus(id);
+        const serverMinutes = Math.max(
+            1,
+            Math.round(Math.max(serverTime.whiteRemainingSeconds, serverTime.blackRemainingSeconds) / 60),
+        );
+        // Backend saat ini memakai kontrol waktu tetap tanpa increment.
+        setMinutes(serverMinutes);
+        setIncrement(0);
+      }
       phaseRef.current = 'playing';
       setPhase('playing');
       setSetupOpen(false);
@@ -409,14 +469,14 @@ export default function App() {
   }
 
   const arrows = suggestedMove
-    ? [
+      ? [
         {
           startSquare: positionToSquare(suggestedMove.from),
           endSquare: positionToSquare(suggestedMove.to),
           color: palette.accent,
         },
       ]
-    : [];
+      : [];
 
   const boardOptions = {
     id: 'chess-arena-board',
@@ -434,12 +494,12 @@ export default function App() {
     allowDrawingArrows: true,
     arrows,
     canDragPiece: ({ piece }: { piece: { pieceType: string } }) =>
-      phase === 'playing' &&
-      !busy &&
-      (isBotOpponent
-        ? currentTurn === 'White' && piece.pieceType.startsWith('w')
-        : (currentTurn === 'White' && piece.pieceType.startsWith('w')) ||
-          (currentTurn === 'Black' && piece.pieceType.startsWith('b'))),
+        phase === 'playing' &&
+        !busy &&
+        (isBotOpponent
+            ? currentTurn === 'White' && piece.pieceType.startsWith('w')
+            : (currentTurn === 'White' && piece.pieceType.startsWith('w')) ||
+            (currentTurn === 'Black' && piece.pieceType.startsWith('b'))),
     onPieceDrag: ({ square }: { square: string | null }) => {
       if (square) void selectSquare(square);
     },
@@ -451,197 +511,197 @@ export default function App() {
   };
 
   return (
-    <div className="app-shell" style={{ '--board-accent': palette.accent } as React.CSSProperties}>
-      <header className="topbar">
-        <a className="brand" href="#top" aria-label="Chess Arena">
-          <span className="brand__mark">♞</span>
-          <span>
+      <div className="app-shell" style={{ '--board-accent': palette.accent } as React.CSSProperties}>
+        <header className="topbar">
+          <a className="brand" href="#top" aria-label="Chess Arena">
+            <span className="brand__mark">♞</span>
+            <span>
             <strong>CHESS</strong>
             <em> FORMUALTRIX</em>
           </span>
-        </a>
-        <div className="topbar__status">
+          </a>
+          <div className="topbar__status">
           <span className={apiOffline ? 'api-state api-state--offline' : 'api-state'}>
             {apiOffline ? <WifiOff size={14} /> : <ShieldCheck size={14} />}
             {apiOffline ? 'API terputus' : gameId ? 'Sesi aktif' : 'Siap bermain'}
           </span>
-          <button className="icon-button mobile-menu" type="button" onClick={() => setMobilePanel(true)} aria-label="Buka panel permainan">
-            <Menu size={20} />
-          </button>
-          <button className="new-game-button" type="button" onClick={newGame}>
-            <Plus size={17} /> Game baru
-          </button>
-        </div>
-      </header>
-
-      <main className="arena" id="top">
-        <section className="board-column" aria-label="Arena permainan">
-          <div className="match-meta">
-            <div>
-              <span className="live-dot" />
-              {phase === 'playing' ? `Giliran ${colorLabel(currentTurn)}` : phase === 'over' ? 'Pertandingan selesai' : 'Menunggu game'}
-            </div>
-            <span>
-              {mode === 'practice'
-                ? 'Latihan • tanpa batas waktu'
-                : `${minutes}+${increment} • ${mode === 'bot' ? 'vs AI' : 'vs Pemain'}`}
-            </span>
-          </div>
-
-          {result && (
-            <div className="result-banner" role="status">
-              <div>
-                <span>Hasil pertandingan</span>
-                <strong>{result.winner === 'Seri' ? 'Seri' : `${result.winner} menang`}</strong>
-                <small>{result.reason}</small>
-              </div>
-              <button type="button" onClick={newGame}>Main lagi <ChevronRight size={17} /></button>
-            </div>
-          )}
-
-          <div className={currentTurn === 'Black' && phase === 'playing' ? 'player-strip player-strip--active' : 'player-strip'}>
-            <div className={isBotOpponent ? 'avatar avatar--bot' : 'avatar'}>
-              {isBotOpponent ? <Bot size={21} /> : <UserRound size={21} />}
-            </div>
-            <div className="player-strip__identity">
-              <strong>{isBotOpponent ? 'AI Bot' : blackName || 'Pemain Hitam'}</strong>
-              <span>{isBotOpponent && busy ? 'Sedang berpikir…' : 'Hitam'}</span>
-            </div>
-            {mode !== 'practice' && (
-              <ChessClock milliseconds={blackMs} active={currentTurn === 'Black' && phase === 'playing'} label="Waktu Hitam" />
-            )}
-          </div>
-
-          <div className={`board-frame${busy ? ' board-frame--busy' : ''}`}>
-            <Chessboard options={boardOptions} />
-            {busy && (
-              <div className="board-busy" aria-live="polite">
-                <LoaderCircle className="spin" size={24} />
-              </div>
-            )}
-          </div>
-
-          <div className={currentTurn === 'White' && phase === 'playing' ? 'player-strip player-strip--active' : 'player-strip'}>
-            <div className="avatar"><UserRound size={21} /></div>
-            <div className="player-strip__identity">
-              <strong>{playerName || 'Pemain Putih'}</strong>
-              <span>{isBotOpponent ? 'Putih • Anda' : 'Putih'}</span>
-            </div>
-            {mode !== 'practice' && (
-              <ChessClock milliseconds={whiteMs} active={currentTurn === 'White' && phase === 'playing'} label="Waktu Putih" />
-            )}
-          </div>
-
-          <div className="notice-line" aria-live="polite">
-            <CircleHelp size={15} />
-            <span>{notice}</span>
-          </div>
-        </section>
-
-        <aside className={mobilePanel ? 'side-panel side-panel--open' : 'side-panel'}>
-          <div className="side-panel__mobile-head">
-            <strong>Panel pertandingan</strong>
-            <button className="icon-button" type="button" onClick={() => setMobilePanel(false)} aria-label="Tutup panel">
-              <X size={20} />
+            <button className="icon-button mobile-menu" type="button" onClick={() => setMobilePanel(true)} aria-label="Buka panel permainan">
+              <Menu size={20} />
+            </button>
+            <button className="new-game-button" type="button" onClick={newGame}>
+              <Plus size={17} /> Game baru
             </button>
           </div>
+        </header>
 
-          <section className="move-panel" aria-labelledby="history-heading">
-            <div className="panel-heading panel-heading--spaced">
-              <span><History size={17} /><h2 id="history-heading">Riwayat langkah</h2></span>
-              <small>{history.length} ply</small>
-            </div>
-            <div className="moves-table" role="table" aria-label="Riwayat langkah catur">
-              <div className="moves-table__head" role="row">
-                <span>#</span><span>Putih</span><span>Hitam</span>
+        <main className="arena" id="top">
+          <section className="board-column" aria-label="Arena permainan">
+            <div className="match-meta">
+              <div>
+                <span className="live-dot" />
+                {phase === 'playing' ? `Giliran ${colorLabel(currentTurn)}` : phase === 'over' ? 'Pertandingan selesai' : 'Menunggu game'}
               </div>
-              {historyRows.length === 0 ? (
-                <div className="empty-history">
-                  <span>♙</span>
-                  <p>Langkah pertama akan muncul di sini.</p>
+              <span>
+              {mode === 'practice'
+                  ? 'Latihan • tanpa batas waktu'
+                  : `${minutes}+${increment} • ${mode === 'bot' ? 'vs AI' : 'vs Pemain'}`}
+            </span>
+            </div>
+
+            {result && (
+                <div className="result-banner" role="status">
+                  <div>
+                    <span>Hasil pertandingan</span>
+                    <strong>{result.winner === 'Seri' ? 'Seri' : `${result.winner} menang`}</strong>
+                    <small>{result.reason}</small>
+                  </div>
+                  <button type="button" onClick={newGame}>Main lagi <ChevronRight size={17} /></button>
                 </div>
-              ) : (
-                <div className="moves-table__body">
-                  {historyRows.map((row) => (
-                    <div className="moves-table__row" role="row" key={row.number}>
-                      <span>{row.number}.</span>
-                      <span>{row.white ? formatMove(row.white) : '—'}</span>
-                      <span>{row.black ? formatMove(row.black) : '—'}</span>
-                    </div>
-                  ))}
-                </div>
+            )}
+
+            <div className={currentTurn === 'Black' && phase === 'playing' ? 'player-strip player-strip--active' : 'player-strip'}>
+              <div className={isBotOpponent ? 'avatar avatar--bot' : 'avatar'}>
+                {isBotOpponent ? <Bot size={21} /> : <UserRound size={21} />}
+              </div>
+              <div className="player-strip__identity">
+                <strong>{isBotOpponent ? 'AI Bot' : blackName || 'Pemain Hitam'}</strong>
+                <span>{isBotOpponent && busy ? 'Sedang berpikir…' : 'Hitam'}</span>
+              </div>
+              {mode !== 'practice' && (
+                  <ChessClock milliseconds={blackMs} active={currentTurn === 'Black' && phase === 'playing'} label="Waktu Hitam" />
               )}
             </div>
-          </section>
 
-          <BoardCustomizer value={palette} onChange={setPalette} />
-
-          <section className="panel-section panel-actions" aria-label="Aksi permainan">
-            <button type="button" className="secondary-button" onClick={requestSuggestion} disabled={!selectedSquare || busy || phase !== 'playing'}>
-              <Lightbulb size={17} /> Saran langkah
-            </button>
-            <button type="button" className="danger-button" onClick={() => setConfirmResign(true)} disabled={phase !== 'playing' || busy}>
-              <Flag size={17} /> Menyerah
-            </button>
-            <button type="button" className="text-button" onClick={() => gameId && loadSnapshot(gameId)} disabled={!gameId || busy}>
-              <RefreshCw size={15} /> Sinkronkan papan
-            </button>
-          </section>
-        </aside>
-        {mobilePanel && <button className="panel-scrim" type="button" onClick={() => setMobilePanel(false)} aria-label="Tutup panel" />}
-      </main>
-
-      <GameSetup
-        open={setupOpen}
-        name={playerName}
-        mode={mode}
-        blackName={blackName}
-        minutes={minutes}
-        increment={increment}
-        loading={busy}
-        error={setupError}
-        onNameChange={setPlayerName}
-        onModeChange={setMode}
-        onBlackNameChange={setBlackName}
-        onMinutesChange={setMinutes}
-        onIncrementChange={setIncrement}
-        onSubmit={startGame}
-      />
-
-      {pendingPromotion && (
-        <div className="modal-backdrop modal-backdrop--top" role="presentation">
-          <section className="small-dialog" role="dialog" aria-modal="true" aria-labelledby="promotion-title">
-            <p className="eyebrow">Promosi pion</p>
-            <h2 id="promotion-title">Pilih bidak baru</h2>
-            <div className="promotion-grid">
-              {promotionPieces.map((piece) => (
-                <button key={piece} type="button" onClick={() => playMove(pendingPromotion.from, pendingPromotion.to, piece)}>
-                  <span aria-hidden="true">{promotionSymbols[piece]}</span>
-                  {piece}
-                </button>
-              ))}
+            <div className={`board-frame${busy ? ' board-frame--busy' : ''}`}>
+              <Chessboard options={boardOptions} />
+              {busy && (
+                  <div className="board-busy" aria-live="polite">
+                    <LoaderCircle className="spin" size={24} />
+                  </div>
+              )}
             </div>
-            <button className="text-button" type="button" onClick={() => setPendingPromotion(undefined)}>Batal</button>
-          </section>
-        </div>
-      )}
 
-      {confirmResign && (
-        <div className="modal-backdrop modal-backdrop--top" role="presentation">
-          <section className="small-dialog" role="alertdialog" aria-modal="true" aria-labelledby="resign-title">
-            <div className="dialog-icon dialog-icon--danger"><Flag size={22} /></div>
-            <h2 id="resign-title">Menyerah sekarang?</h2>
-            <p>
-              {isBotOpponent ? 'AI Bot' : blackName || 'Pemain Hitam'} akan dinyatakan menang dan sesi ini
-              berakhir.
-            </p>
-            <div className="dialog-actions">
-              <button className="secondary-button" type="button" onClick={() => setConfirmResign(false)}>Lanjut bermain</button>
-              <button className="danger-button danger-button--solid" type="button" onClick={resign}>Ya, menyerah</button>
+            <div className={currentTurn === 'White' && phase === 'playing' ? 'player-strip player-strip--active' : 'player-strip'}>
+              <div className="avatar"><UserRound size={21} /></div>
+              <div className="player-strip__identity">
+                <strong>{playerName || 'Pemain Putih'}</strong>
+                <span>{isBotOpponent ? 'Putih • Anda' : 'Putih'}</span>
+              </div>
+              {mode !== 'practice' && (
+                  <ChessClock milliseconds={whiteMs} active={currentTurn === 'White' && phase === 'playing'} label="Waktu Putih" />
+              )}
+            </div>
+
+            <div className="notice-line" aria-live="polite">
+              <CircleHelp size={15} />
+              <span>{notice}</span>
             </div>
           </section>
-        </div>
-      )}
-    </div>
+
+          <aside className={mobilePanel ? 'side-panel side-panel--open' : 'side-panel'}>
+            <div className="side-panel__mobile-head">
+              <strong>Panel pertandingan</strong>
+              <button className="icon-button" type="button" onClick={() => setMobilePanel(false)} aria-label="Tutup panel">
+                <X size={20} />
+              </button>
+            </div>
+
+            <section className="move-panel" aria-labelledby="history-heading">
+              <div className="panel-heading panel-heading--spaced">
+                <span><History size={17} /><h2 id="history-heading">Riwayat langkah</h2></span>
+                <small>{history.length} ply</small>
+              </div>
+              <div className="moves-table" role="table" aria-label="Riwayat langkah catur">
+                <div className="moves-table__head" role="row">
+                  <span>#</span><span>Putih</span><span>Hitam</span>
+                </div>
+                {historyRows.length === 0 ? (
+                    <div className="empty-history">
+                      <span>♙</span>
+                      <p>Langkah pertama akan muncul di sini.</p>
+                    </div>
+                ) : (
+                    <div className="moves-table__body">
+                      {historyRows.map((row) => (
+                          <div className="moves-table__row" role="row" key={row.number}>
+                            <span>{row.number}.</span>
+                            <span>{row.white ? formatMove(row.white) : '—'}</span>
+                            <span>{row.black ? formatMove(row.black) : '—'}</span>
+                          </div>
+                      ))}
+                    </div>
+                )}
+              </div>
+            </section>
+
+            <BoardCustomizer value={palette} onChange={setPalette} />
+
+            <section className="panel-section panel-actions" aria-label="Aksi permainan">
+              <button type="button" className="secondary-button" onClick={requestSuggestion} disabled={!selectedSquare || busy || phase !== 'playing'}>
+                <Lightbulb size={17} /> Saran langkah
+              </button>
+              <button type="button" className="danger-button" onClick={() => setConfirmResign(true)} disabled={phase !== 'playing' || busy}>
+                <Flag size={17} /> Menyerah
+              </button>
+              <button type="button" className="text-button" onClick={() => gameId && loadSnapshot(gameId)} disabled={!gameId || busy}>
+                <RefreshCw size={15} /> Sinkronkan papan
+              </button>
+            </section>
+          </aside>
+          {mobilePanel && <button className="panel-scrim" type="button" onClick={() => setMobilePanel(false)} aria-label="Tutup panel" />}
+        </main>
+
+        <GameSetup
+            open={setupOpen}
+            name={playerName}
+            mode={mode}
+            blackName={blackName}
+            minutes={minutes}
+            increment={increment}
+            loading={busy}
+            error={setupError}
+            onNameChange={setPlayerName}
+            onModeChange={setMode}
+            onBlackNameChange={setBlackName}
+            onMinutesChange={setMinutes}
+            onIncrementChange={setIncrement}
+            onSubmit={startGame}
+        />
+
+        {pendingPromotion && (
+            <div className="modal-backdrop modal-backdrop--top" role="presentation">
+              <section className="small-dialog" role="dialog" aria-modal="true" aria-labelledby="promotion-title">
+                <p className="eyebrow">Promosi pion</p>
+                <h2 id="promotion-title">Pilih bidak baru</h2>
+                <div className="promotion-grid">
+                  {promotionPieces.map((piece) => (
+                      <button key={piece} type="button" onClick={() => playMove(pendingPromotion.from, pendingPromotion.to, piece)}>
+                        <span aria-hidden="true">{promotionSymbols[piece]}</span>
+                        {piece}
+                      </button>
+                  ))}
+                </div>
+                <button className="text-button" type="button" onClick={() => setPendingPromotion(undefined)}>Batal</button>
+              </section>
+            </div>
+        )}
+
+        {confirmResign && (
+            <div className="modal-backdrop modal-backdrop--top" role="presentation">
+              <section className="small-dialog" role="alertdialog" aria-modal="true" aria-labelledby="resign-title">
+                <div className="dialog-icon dialog-icon--danger"><Flag size={22} /></div>
+                <h2 id="resign-title">Menyerah sekarang?</h2>
+                <p>
+                  {isBotOpponent ? 'AI Bot' : blackName || 'Pemain Hitam'} akan dinyatakan menang dan sesi ini
+                  berakhir.
+                </p>
+                <div className="dialog-actions">
+                  <button className="secondary-button" type="button" onClick={() => setConfirmResign(false)}>Lanjut bermain</button>
+                  <button className="danger-button danger-button--solid" type="button" onClick={resign}>Ya, menyerah</button>
+                </div>
+              </section>
+            </div>
+        )}
+      </div>
   );
 }

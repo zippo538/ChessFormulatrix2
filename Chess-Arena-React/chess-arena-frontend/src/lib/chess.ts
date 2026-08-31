@@ -29,11 +29,11 @@ const pieceSymbols: Record<PieceName, string> = {
 };
 
 const enumOrder = (
-  import.meta.env.VITE_PIECE_ENUM_ORDER ||
-  'Pawn,Knight,Bishop,Rook,Queen,King'
+    import.meta.env.VITE_PIECE_ENUM_ORDER ||
+    'Pawn,Knight,Bishop,Rook,Queen,King'
 )
-  .split(',')
-  .map((value: string) => value.trim());
+    .split(',')
+    .map((value: string) => value.trim());
 
 function record(value: unknown): UnknownRecord {
   return value && typeof value === 'object' ? (value as UnknownRecord) : {};
@@ -84,10 +84,10 @@ export function normalizeBoard(payload: unknown): BoardState {
   const source = record(payload);
   const rawTiles = first(source, ['tiles', 'Tiles']);
   const tiles = Array.isArray(rawTiles)
-    ? rawTiles
-    : Array.isArray(payload)
-      ? payload
-      : [];
+      ? rawTiles
+      : Array.isArray(payload)
+          ? payload
+          : [];
   const position: BoardState['position'] = {};
   const pieces: BoardState['pieces'] = {};
 
@@ -97,19 +97,19 @@ export function normalizeBoard(payload: unknown): BoardState {
     if (!rawPiece) return;
     const piece = record(rawPiece);
     const color = normalizeColor(
-      first(piece, ['pieceColor', 'PieceColor', 'color', 'Color']),
+        first(piece, ['pieceColor', 'PieceColor', 'color', 'Color']),
     );
     const type = normalizePiece(
-      first(piece, ['type', 'Type', 'pieceType', 'PieceType']),
+        first(piece, ['type', 'Type', 'pieceType', 'PieceType']),
     );
     if (!color || !type) return;
 
     const tilePosition =
-      normalizePosition(first(tile, ['position', 'Position'])) ??
-      normalizePosition(tile) ?? {
-        row: Math.floor(index / 8),
-        column: index % 8,
-      };
+        normalizePosition(first(tile, ['position', 'Position'])) ??
+        normalizePosition(tile) ?? {
+          row: Math.floor(index / 8),
+          column: index % 8,
+        };
     const square = positionToSquare(tilePosition);
     pieces[square] = { color, type };
     position[square] = {
@@ -131,7 +131,7 @@ export function normalizeMove(payload: unknown): MoveDto | undefined {
     from,
     to,
     promotionType: normalizePiece(
-      first(move, ['promotionType', 'PromotionType', 'promptionType', 'PromptionType']),
+        first(move, ['promotionType', 'PromotionType', 'promptionType', 'PromptionType']),
     ),
   };
 }
@@ -148,7 +148,7 @@ export function normalizeHistory(payload: unknown): HistoryEntry[] {
         color: normalizeColor(first(entry, ['pieceColor', 'PieceColor', 'color', 'Color'])),
         piece: normalizePiece(first(entry, ['pieceType', 'PieceType', 'piece', 'Piece'])),
         capturedPiece: normalizePiece(
-          first(entry, ['capturedPieceType', 'CapturedPieceType']),
+            first(entry, ['capturedPieceType', 'CapturedPieceType']),
         ),
         moveType: String(first(entry, ['moveType', 'MoveType', 'type', 'Type']) ?? ''),
       },
@@ -187,4 +187,10 @@ export function readBoolean(source: unknown, keys: string[]): boolean {
 export function readString(source: unknown, keys: string[]): string | undefined {
   const value = first(record(source), keys);
   return value === undefined ? undefined : String(value);
+}
+
+export function readNumber(source: unknown, keys: string[]): number | undefined {
+  const value = first(record(source), keys);
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
 }

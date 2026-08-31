@@ -4,6 +4,7 @@ import {
   normalizeMove,
   normalizePosition,
   readBoolean,
+  readNumber,
   readString,
 } from '../lib/chess';
 import type {
@@ -18,11 +19,13 @@ const apiBase = (import.meta.env.VITE_CHESS_API_URL || '/api/chess').replace(/\/
 
 export class ApiError extends Error {
   status: number;
+  payload?: unknown;
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, payload?: unknown) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
+    this.payload = payload;
   }
 }
 
@@ -45,11 +48,11 @@ async function request(path = '', init?: RequestInit): Promise<unknown> {
   }
   if (!response.ok) {
     const message =
-      typeof data === 'string'
-        ? data
-        : readString(data, ['message', 'Message', 'title', 'Title']) ||
-          `Permintaan gagal (${response.status}).`;
-    throw new ApiError(message, response.status);
+        typeof data === 'string'
+            ? data
+            : readString(data, ['message', 'Message', 'title', 'Title']) ||
+            `Permintaan gagal (${response.status}).`;
+    throw new ApiError(message, response.status, data);
   }
   return data;
 }
@@ -72,6 +75,17 @@ export type CreateGameOptions = {
   blackName?: string;
   // true = lawan AI Bot (default), false = player vs player lokal.
   vsBot: boolean;
+};
+
+export type TimeStatusResponse = {
+  whiteRemainingSeconds: number;
+  blackRemainingSeconds: number;
+  currentTurn?: ChessColor;
+  timeExpired: boolean;
+  timedOutPlayer?: ChessColor;
+  gameOver: boolean;
+  reason?: string;
+  winner?: string;
 };
 
 export const chessApi = {
@@ -100,27 +114,27 @@ export const chessApi = {
     });
     const data = await request(`/${gameId}/valid-moves?${params}`);
     return Array.isArray(data)
-      ? data.map(normalizePosition).filter((value): value is PositionDto => Boolean(value))
-      : [];
+        ? data.map(normalizePosition).filter((value): value is PositionDto => Boolean(value))
+        : [];
   },
 
   async makeMove(gameId: string, move: MoveDto): Promise<MoveResponse> {
-      const body: Record<string, unknown> = {
-        from: { row: move.from.row, column: move.from.column },
-        to: { row: move.to.row, column: move.to.column },
-      };
-      // Hanya disertakan saat memang ada pilihan promosi (pion mencapai ujung
-      // papan). Untuk langkah biasa, field ini tidak dikirim sama sekali --
-      // biar backend yang menentukan default Queen HANYA jika promosi terjadi.
-      if (move.promotionType) {
-        body.promotionType = move.promotionType;
-      }
-      const data = await request(`/${gameId}/moves`, {
-        method: 'POST',
-        body: JSON.stringify(body),
-      });
-      return normalizeMoveResponse(data);
-    },
+    const body: Record<string, unknown> = {
+      from: { row: move.from.row, column: move.from.column },
+      to: { row: move.to.row, column: move.to.column },
+    };
+    // Hanya disertakan saat memang ada pilihan promosi (pion mencapai ujung
+    // papan). Untuk langkah biasa, field ini tidak dikirim sama sekali --
+    // biar backend yang menentukan default Queen HANYA jika promosi terjadi.
+    if (move.promotionType) {
+      body.promotionType = move.promotionType;
+    }
+    const data = await request(`/${gameId}/moves`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+    return normalizeMoveResponse(data);
+  },
 
   async getSuggestion(gameId: string, position: PositionDto): Promise<MoveDto | undefined> {
     const params = new URLSearchParams({
@@ -134,6 +148,28 @@ export const chessApi = {
   async resign(gameId: string): Promise<MoveResponse> {
     const data = await request(`/${gameId}/resign`, { method: 'POST' });
     return normalizeMoveResponse(data);
+  },
+
+  async getTimeStatus(gameId: string): Promise<TimeStatusResponse> {
+    const data = await request(`/${gameId}/time-status`);
+    return {
+      whiteRemainingSeconds: Math.max(
+          0,
+          readNumber(data, ['whiteRemainingSeconds', 'WhiteRemainingSeconds']) ?? 0,
+      ),
+      blackRemainingSeconds: Math.max(
+          0,
+          readNumber(data, ['blackRemainingSeconds', 'BlackRemainingSeconds']) ?? 0,
+      ),
+      currentTurn: normalizeColor(readString(data, ['currentTurn', 'CurrentTurn'])),
+      timeExpired: readBoolean(data, ['timeExpired', 'TimeExpired']),
+      timedOutPlayer: normalizeColor(
+          readString(data, ['timedOutPlayer', 'TimedOutPlayer']),
+      ),
+      gameOver: readBoolean(data, ['gameOver', 'GameOver']),
+      reason: readString(data, ['reason', 'Reason']),
+      winner: readString(data, ['winner', 'Winner']),
+    };
   },
 
   async getHistory(gameId: string): Promise<HistoryEntry[]> {
