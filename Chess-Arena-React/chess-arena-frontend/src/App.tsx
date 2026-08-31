@@ -216,7 +216,7 @@ export default function App() {
   // di dalam satu request POST /moves (lihat ChessController.MakeMove &
   // Game.MakeBotMove), dan mengirim balik langkah bot lewat `botMove`.
 
-  async function playMove(fromSquare: string, toSquare: string, promotionType: PieceName = 'Queen') {
+  async function playMove(fromSquare: string, toSquare: string, promotionType?: PieceName) {
     if (!gameId || busy || phase !== 'playing') return;
     setBusy(true);
     setSuggestedMove(undefined);

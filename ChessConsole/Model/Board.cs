@@ -15,7 +15,7 @@ public class Board
         {
             Tiles[i] = new Tile
             {
-                TilePosition = new Postition { row = i / 8, Column = i % 8 }
+                TilePosition = new Postition { Row = i / 8, Column = i % 8 }
             };
         }
     }

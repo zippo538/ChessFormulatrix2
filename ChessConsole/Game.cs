@@ -102,11 +102,11 @@ public class Game : IGame
             _availableMoves == null ||
             !IsInsideBoard(move.From) ||
             !IsInsideBoard(move.To) ||
-            move.From.row != _selectedPostition.row ||
+            move.From.Row != _selectedPostition.Row ||
             move.From.Column != _selectedPostition.Column ||
             _selectedPiece.PieceColor != CurrentPlayer.PlayerColor ||
             !_availableMoves.Any(position =>
-                position.row == move.To.row &&
+                position.Row == move.To.Row &&
                 position.Column == move.To.Column)
             )
         {
@@ -114,10 +114,10 @@ public class Game : IGame
         }
 
         Tile fromTile =
-            _board.Tiles[move.From.row * 8 + move.From.Column];
+            _board.Tiles[move.From.Row * 8 + move.From.Column];
 
         Tile toTile =
-            _board.Tiles[move.To.row * 8 + move.To.Column];
+            _board.Tiles[move.To.Row * 8 + move.To.Column];
 
         if (!ReferenceEquals(fromTile.ChessPiece, _selectedPiece))
         {
@@ -224,9 +224,9 @@ public class Game : IGame
     void RemoveEnPassantPawn(Move move)
     {
         if (_selectedPiece?.Type != PieceType.Pawn) return;
-        if (move.To.Column != move.From.Column && _board.Tiles[move.To.row * 8 + move.To.Column].ChessPiece == null)
+        if (move.To.Column != move.From.Column && _board.Tiles[move.To.Row * 8 + move.To.Column].ChessPiece == null)
         {
-            int capturedRow = move.From.row;
+            int capturedRow = move.From.Row;
             _board.Tiles[capturedRow * 8 + move.To.Column].ChessPiece = null;
         }
     }
@@ -238,16 +238,16 @@ public class Game : IGame
         {
             if (move.To.Column > move.From.Column)
             {
-                var rook = _board.Tiles[move.From.row * 8 + 7].ChessPiece;
-                _board.Tiles[move.From.row * 8 + 5].ChessPiece = rook;
-                _board.Tiles[move.From.row * 8 + 7].ChessPiece = null;
+                var rook = _board.Tiles[move.From.Row * 8 + 7].ChessPiece;
+                _board.Tiles[move.From.Row * 8 + 5].ChessPiece = rook;
+                _board.Tiles[move.From.Row * 8 + 7].ChessPiece = null;
                 rook!.Hasmove = true;
             }
             else
             {
-                var rook = _board.Tiles[move.From.row * 8 + 0].ChessPiece;
-                _board.Tiles[move.From.row * 8 + 3].ChessPiece = rook;
-                _board.Tiles[move.From.row * 8 + 0].ChessPiece = null;
+                var rook = _board.Tiles[move.From.Row * 8 + 0].ChessPiece;
+                _board.Tiles[move.From.Row * 8 + 3].ChessPiece = rook;
+                _board.Tiles[move.From.Row * 8 + 0].ChessPiece = null;
                 rook!.Hasmove = true;
             }
         }
@@ -256,10 +256,10 @@ public class Game : IGame
     void MoveAndPromote(Move move)
     {
         if (_selectedPiece?.Type != PieceType.Pawn) return;
-        if (move.To.row == 0 || move.To.row == 7)
+        if (move.To.Row == 0 || move.To.Row == 7)
         {
-            var promotedPiece = new Piece(_selectedPiece.PieceColor, move.PromptionType);
-            _board.Tiles[move.To.row * 8 + move.To.Column].ChessPiece = promotedPiece;
+            var promotedPiece = new Piece(_selectedPiece.PieceColor, move.PromotionType);
+            _board.Tiles[move.To.Row * 8 + move.To.Column].ChessPiece = promotedPiece;
         }
     }
 
@@ -277,19 +277,19 @@ public class Game : IGame
         {
             for (int i = 1; i < 8; i++)
             {
-                int r = position.row + dir[0] * i;
+                int r = position.Row + dir[0] * i;
                 int c = position.Column + dir[1] * i;
                 if (r < 0 || r >= 8 || c < 0 || c >= 8) break;
 
                 var tile = _board.Tiles[r * 8 + c];
                 if (tile.ChessPiece == null)
                 {
-                    moves.Add(new Postition { row = r, Column = c });
+                    moves.Add(new Postition { Row = r, Column = c });
                 }
                 else
                 {
                     if (tile.ChessPiece.PieceColor != piece.PieceColor)
-                        moves.Add(new Postition { row = r, Column = c });
+                        moves.Add(new Postition { Row = r, Column = c });
                     break;
                 }
             }
@@ -301,13 +301,13 @@ public class Game : IGame
         int dir = piece.PieceColor == Color.White ? 1 : -1;
         int startRow = piece.PieceColor == Color.White ? 1 : 6;
 
-        int r1 = position.row + dir;
+        int r1 = position.Row + dir;
         if (r1 >= 0 && r1 < 8 && _board.Tiles[r1 * 8 + position.Column].ChessPiece == null)
         {
-            moves.Add(new Postition { row = r1, Column = position.Column });
-            int r2 = position.row + dir * 2;
-            if (position.row == startRow && _board.Tiles[r2 * 8 + position.Column].ChessPiece == null)
-                moves.Add(new Postition { row = r2, Column = position.Column });
+            moves.Add(new Postition { Row = r1, Column = position.Column });
+            int r2 = position.Row + dir * 2;
+            if (position.Row == startRow && _board.Tiles[r2 * 8 + position.Column].ChessPiece == null)
+                moves.Add(new Postition { Row = r2, Column = position.Column });
         }
 
         for (int dc = -1; dc <= 1; dc += 2)
@@ -317,7 +317,7 @@ public class Game : IGame
             {
                 var tile = _board.Tiles[r1 * 8 + c];
                 if (tile.ChessPiece != null && tile.ChessPiece.PieceColor != piece.PieceColor)
-                    moves.Add(new Postition { row = r1, Column = c });
+                    moves.Add(new Postition { Row = r1, Column = c });
             }
         }
     }
@@ -342,19 +342,19 @@ public class Game : IGame
 
         foreach (var offset in offsets)
         {
-            int r = position.row + offset[0];
+            int r = position.Row + offset[0];
             int c = position.Column + offset[1];
             if (r < 0 || r >= 8 || c < 0 || c >= 8) continue;
 
             var tile = _board.Tiles[r * 8 + c];
             if (tile.ChessPiece == null || tile.ChessPiece.PieceColor != piece.PieceColor)
-                moves.Add(new Postition { row = r, Column = c });
+                moves.Add(new Postition { Row = r, Column = c });
         }
     }
 
     bool CanAttack(Postition from, Postition to, Color attackerColor)
     {
-        var piece = _board.Tiles[from.row * 8 + from.Column].ChessPiece;
+        var piece = _board.Tiles[from.Row * 8 + from.Column].ChessPiece;
         if (piece == null || piece.PieceColor != attackerColor) return false;
 
         var moves = new List<Postition>();
@@ -379,7 +379,7 @@ public class Game : IGame
     // suggestion move piece
     public Move? GetSuggestedMoveForPiece(Postition piecePosition)
     {
-    var tile = _board.Tiles[piecePosition.row * 8 + piecePosition.Column];
+    var tile = _board.Tiles[piecePosition.Row * 8 + piecePosition.Column];
     if (tile.ChessPiece == null || tile.ChessPiece.PieceColor != CurrentPlayer.PlayerColor)
     {
         return null;
@@ -403,9 +403,9 @@ public class Game : IGame
         _board = BoardHelper.Copy(originalBoard);
 
         // 3. Eksekusi simulasi langkah
-        var movingPiece = _board.Tiles[piecePosition.row * 8 + piecePosition.Column].ChessPiece;
-        _board.Tiles[targetPosition.row * 8 + targetPosition.Column].ChessPiece = movingPiece;
-        _board.Tiles[piecePosition.row * 8 + piecePosition.Column].ChessPiece = null;
+        var movingPiece = _board.Tiles[piecePosition.Row * 8 + piecePosition.Column].ChessPiece;
+        _board.Tiles[targetPosition.Row * 8 + targetPosition.Column].ChessPiece = movingPiece;
+        _board.Tiles[piecePosition.Row * 8 + piecePosition.Column].ChessPiece = null;
 
         // 4. Evaluasi hasil papan setelah langkah ini
         int currentScore = EvaluateBoard(_board);
@@ -447,7 +447,7 @@ public class Game : IGame
                 var piece = _board.Tiles[r * 8 + c].ChessPiece;
                 if (piece != null && piece.PieceColor == opponentColor)
                 {
-                    if (CanAttack(new Postition { row = r, Column = c }, kingPos, opponentColor))
+                    if (CanAttack(new Postition { Row = r, Column = c }, kingPos, opponentColor))
                         return true;
                 }
             }
@@ -458,7 +458,7 @@ public class Game : IGame
     // Legal Moves
     List<Postition>? GetLegalMoves(Postition position)
     {
-        var piece = _board.Tiles[position.row * 8 + position.Column].ChessPiece;
+        var piece = _board.Tiles[position.Row * 8 + position.Column].ChessPiece;
         if (piece == null) return new List<Postition>();
 
         var pseudoLegalMoves = new List<Postition>();
@@ -503,10 +503,10 @@ public class Game : IGame
             _board = BoardHelper.Copy(originalBoard);
 
             var movingPiece =
-                _board.Tiles[from.row * 8 + from.Column].ChessPiece;
+                _board.Tiles[from.Row * 8 + from.Column].ChessPiece;
 
-            _board.Tiles[to.row * 8 + to.Column].ChessPiece = movingPiece;
-            _board.Tiles[from.row * 8 + from.Column].ChessPiece = null;
+            _board.Tiles[to.Row * 8 + to.Column].ChessPiece = movingPiece;
+            _board.Tiles[from.Row * 8 + from.Column].ChessPiece = null;
 
             return !IsKingInCheck(movingColor);
         }
@@ -527,7 +527,7 @@ public class Game : IGame
                 var piece = _board.Tiles[r * 8 + c].ChessPiece;
                 if (piece != null && piece.PieceColor == color)
                 {
-                    var moves = GetLegalMoves(new Postition { row = r, Column = c });
+                    var moves = GetLegalMoves(new Postition { Row = r, Column = c });
                     if (moves != null) allMoves.AddRange(moves);
                 }
             }
@@ -544,8 +544,8 @@ public class Game : IGame
     {
         return new List<Postition>
         {
-            new Postition { row = 0, Column = 0 },
-            new Postition { row = 0, Column = 0 }
+            new Postition { Row = 0, Column = 0 },
+            new Postition { Row = 0, Column = 0 }
         };
     }
 
@@ -555,7 +555,7 @@ public class Game : IGame
         if (king.Hasmove || IsKingInCheck(king.PieceColor)) return moves;
         
         
-        int row = kingPos.row;
+        int row = kingPos.Row;
         // KINGISDE CASTLING 
         var kingSideRook = _board.Tiles[row * 8 + 7].ChessPiece;
         if (kingSideRook != null && kingSideRook.Type == PieceType.Rook && !kingSideRook.Hasmove)
@@ -565,10 +565,10 @@ public class Game : IGame
                 _board.Tiles[row * 8 + 6].ChessPiece == null)
             {
                 // Aturan FIDE 4 & 5: Petak yang dilewati (f) dan dituju (g) TIDAK diserang lawan
-                if (!IsSquareAttacked(new Postition { row = row, Column = 5 }, king.PieceColor) &&
-                    !IsSquareAttacked(new Postition { row = row, Column = 6 }, king.PieceColor))
+                if (!IsSquareAttacked(new Postition { Row = row, Column = 5 }, king.PieceColor) &&
+                    !IsSquareAttacked(new Postition { Row = row, Column = 6 }, king.PieceColor))
                 {
-                    moves.Add(new Postition { row = row, Column = 6 });
+                    moves.Add(new Postition { Row = row, Column = 6 });
                 }
             }
         }
@@ -583,10 +583,10 @@ public class Game : IGame
             {
                 // Aturan FIDE 4 & 5: Petak dilewati (d/3) dan dituju (c/2) TIDAK diserang.
                 // Sesuai aturan FIDE, petak b (kolom 1) TIDAK PERLU dicek serangannya karena Raja tidak melewatinya.
-                if (!IsSquareAttacked(new Postition { row = row, Column = 2 }, king.PieceColor) &&
-                    !IsSquareAttacked(new Postition { row = row, Column = 3 }, king.PieceColor))
+                if (!IsSquareAttacked(new Postition { Row = row, Column = 2 }, king.PieceColor) &&
+                    !IsSquareAttacked(new Postition { Row = row, Column = 3 }, king.PieceColor))
                 {
-                    moves.Add(new Postition { row = row, Column = 2 });
+                    moves.Add(new Postition { Row = row, Column = 2 });
                 }
             }
         }
@@ -607,7 +607,7 @@ public class Game : IGame
                     {
                         // Pion menyerang secara diagonal 1 petak ke depan
                         int dir = (attackerColor == Color.White) ? 1 : -1;
-                        if (r + dir == targetPos.row && (c - 1 == targetPos.Column || c + 1 == targetPos.Column))
+                        if (r + dir == targetPos.Row && (c - 1 == targetPos.Column || c + 1 == targetPos.Column))
                         {
                             return true;
                         }
@@ -615,7 +615,7 @@ public class Game : IGame
                     else
                     {
                         // Untuk bidak lain, gunakan logika CanAttack standar
-                        if (CanAttack(new Postition { row = r, Column = c }, targetPos, attackerColor))
+                        if (CanAttack(new Postition { Row = r, Column = c }, targetPos, attackerColor))
                         {
                             return true;
                         }
@@ -631,15 +631,15 @@ public class Game : IGame
         var moves = new List<Postition>();
         if (_lastMove.Equals(default(Move))) return moves;
 
-        var pawn = _board.Tiles[pawnPos.row * 8 + pawnPos.Column].ChessPiece;
+        var pawn = _board.Tiles[pawnPos.Row * 8 + pawnPos.Column].ChessPiece;
         if (pawn == null || pawn.Type != PieceType.Pawn) return moves;
 
         //evaluate last move lawan
-        int lastMoveRowDiff = Math.Abs(_lastMove.To.row - _lastMove.From.row);
+        int lastMoveRowDiff = Math.Abs(_lastMove.To.Row - _lastMove.From.Row);
 
         if (lastMoveRowDiff == 2)
         {
-            var lastMovedPiece = _board.Tiles[_lastMove.To.row * 8 + _lastMove.To.Column].ChessPiece;
+            var lastMovedPiece = _board.Tiles[_lastMove.To.Row * 8 + _lastMove.To.Column].ChessPiece;
 
             // Pastikan bidak yang baru saja bergerak adalah Pion musuh
             if (lastMovedPiece != null &&
@@ -648,17 +648,17 @@ public class Game : IGame
             {
                 // 3. Syarat Posisi: Pion kita harus berada di baris yang sama dengan pion musuh, 
                 // dan bersebelahan (selisih kolom = 1)
-                if (_lastMove.To.row == pawnPos.row &&
+                if (_lastMove.To.Row == pawnPos.Row &&
                     Math.Abs(_lastMove.To.Column - pawnPos.Column) == 1)
                 {
                     // Hitung baris tangkapan (maju 1 petak secara diagonal ke belakang pion musuh)
-                    int captureRow = pawn.PieceColor == Color.White ? pawnPos.row + 1 : pawnPos.row - 1;
+                    int captureRow = pawn.PieceColor == Color.White ? pawnPos.Row + 1 : pawnPos.Row - 1;
                     int captureCol = _lastMove.To.Column;
 
                     // Pastikan target berada di dalam papan
                     if (captureRow >= 0 && captureRow < 8 && captureCol >= 0 && captureCol < 8)
                     {
-                        moves.Add(new Postition { row = captureRow, Column = captureCol });
+                        moves.Add(new Postition { Row = captureRow, Column = captureCol });
                     }
                 }
             }
@@ -693,11 +693,11 @@ public class Game : IGame
                 var piece = _board.Tiles[r * 8 + c].ChessPiece;
                 if (piece != null && piece.Type == PieceType.King && piece.PieceColor == kingColor)
                 {
-                    return new Postition { row = r, Column = c };
+                    return new Postition { Row = r, Column = c };
                 }
             }
         }
-        return new Postition { row = -1, Column = -1 };
+        return new Postition { Row = -1, Column = -1 };
     }
 
     public Board GetCurrentBoard() { return _board; }
@@ -708,7 +708,7 @@ public class Game : IGame
 
         if (!IsInsideBoard(position)) return;
 
-        var tile = _board.Tiles[position.row * 8 + position.Column];
+        var tile = _board.Tiles[position.Row * 8 + position.Column];
         if (tile.ChessPiece != null && tile.ChessPiece.PieceColor == CurrentPlayer.PlayerColor)
         {
             _selectedPiece = tile.ChessPiece;
@@ -740,18 +740,18 @@ public class Game : IGame
             
             if (suggestedMove.HasValue)
             {
-                Console.WriteLine($"Saran Langkah: Ke baris {suggestedMove.Value.To.row}, kolom {suggestedMove.Value.To.Column}");
+                Console.WriteLine($"Saran Langkah: Ke baris {suggestedMove.Value.To.Row}, kolom {suggestedMove.Value.To.Column}");
             }
         }
     }
-    private static bool IsInsideBoard(Postition position) =>  position.row >= 0 && 
-                                                              position.row < 8 && position.Column >= 0 && position.Column < 8;
+    private static bool IsInsideBoard(Postition position) =>  position.Row >= 0 && 
+                                                              position.Row < 8 && position.Column >= 0 && position.Column < 8;
 
     private void ClearSelection()
     {
         _selectedPiece = null;
         _availableMoves = null;
-        _selectedPostition = new Postition { row = -1, Column = -1 };
+        _selectedPostition = new Postition { Row = -1, Column = -1 };
     }
     private int EvaluateBoard(Board board)
     {
@@ -805,7 +805,7 @@ public class Game : IGame
                 var piece = _board.Tiles[r * 8 + c].ChessPiece;
                 if (piece != null && piece.PieceColor == color)
                 {
-                    var from = new Postition { row = r, Column = c };
+                    var from = new Postition { Row = r, Column = c };
                     var moves = GetLegalMoves(from);
                     if (moves != null)
                     {
@@ -826,16 +826,16 @@ public class Game : IGame
     /// </summary>
     private void ApplySimulatedMove(Postition from, Postition to)
     {
-        var movingPiece = _board.Tiles[from.row * 8 + from.Column].ChessPiece;
+        var movingPiece = _board.Tiles[from.Row * 8 + from.Column].ChessPiece;
         if (movingPiece == null) return;
 
         // En passant: pion bergerak diagonal ke petak kosong
         bool isEnPassant = movingPiece.Type == PieceType.Pawn &&
                             from.Column != to.Column &&
-                            _board.Tiles[to.row * 8 + to.Column].ChessPiece == null;
+                            _board.Tiles[to.Row * 8 + to.Column].ChessPiece == null;
         if (isEnPassant)
         {
-            _board.Tiles[from.row * 8 + to.Column].ChessPiece = null;
+            _board.Tiles[from.Row * 8 + to.Column].ChessPiece = null;
         }
 
         // Castling: raja bergerak 2 kolom
@@ -845,28 +845,28 @@ public class Game : IGame
         {
             if (to.Column > from.Column)
             {
-                var rook = _board.Tiles[from.row * 8 + 7].ChessPiece;
-                _board.Tiles[from.row * 8 + 5].ChessPiece = rook;
-                _board.Tiles[from.row * 8 + 7].ChessPiece = null;
+                var rook = _board.Tiles[from.Row * 8 + 7].ChessPiece;
+                _board.Tiles[from.Row * 8 + 5].ChessPiece = rook;
+                _board.Tiles[from.Row * 8 + 7].ChessPiece = null;
                 if (rook != null) rook.Hasmove = true;
             }
             else
             {
-                var rook = _board.Tiles[from.row * 8 + 0].ChessPiece;
-                _board.Tiles[from.row * 8 + 3].ChessPiece = rook;
-                _board.Tiles[from.row * 8 + 0].ChessPiece = null;
+                var rook = _board.Tiles[from.Row * 8 + 0].ChessPiece;
+                _board.Tiles[from.Row * 8 + 3].ChessPiece = rook;
+                _board.Tiles[from.Row * 8 + 0].ChessPiece = null;
                 if (rook != null) rook.Hasmove = true;
             }
         }
 
-        _board.Tiles[to.row * 8 + to.Column].ChessPiece = movingPiece;
-        _board.Tiles[from.row * 8 + from.Column].ChessPiece = null;
+        _board.Tiles[to.Row * 8 + to.Column].ChessPiece = movingPiece;
+        _board.Tiles[from.Row * 8 + from.Column].ChessPiece = null;
         movingPiece.Hasmove = true;
 
         // Promosi otomatis ke Queen saat simulasi
-        if (movingPiece.Type == PieceType.Pawn && (to.row == 0 || to.row == 7))
+        if (movingPiece.Type == PieceType.Pawn && (to.Row == 0 || to.Row == 7))
         {
-            _board.Tiles[to.row * 8 + to.Column].ChessPiece =
+            _board.Tiles[to.Row * 8 + to.Column].ChessPiece =
                 new Piece(movingPiece.PieceColor, PieceType.Queen);
         }
     }
@@ -947,7 +947,7 @@ public class Game : IGame
                     From = from,
                     To = to,
                     Type = MoveType.Normal,
-                    PromptionType = PieceType.Queen
+                    PromotionType = PieceType.Queen
                 };
             }
 

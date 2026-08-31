@@ -147,7 +147,7 @@ public class ChessController : ControllerBase
             return NotFound("Game session not found.");
 
         // Membentuk struct Postition asli sesuai typo pada model awal
-        var position = new Postition { row = row, Column = col };
+        var position = new Postition { Row = row, Column = col };
 
         // Memanggil TrySelectPiece bawaan Game.cs
         if (game.TrySelectPiece(position))
@@ -190,8 +190,8 @@ public class ChessController : ControllerBase
         if (!_activeGames.TryGetValue(gameId, out var game))
             return NotFound("Game session not found.");
 
-        var fromPosition = new Postition { row = moveDto.From.Row, Column = moveDto.From.Column };
-        var toPosition = new Postition { row = moveDto.To.Row, Column = moveDto.To.Column };
+        var fromPosition = new Postition { Row = moveDto.From.Row, Column = moveDto.From.Column };
+        var toPosition = new Postition { Row = moveDto.To.Row, Column = moveDto.To.Column };
 
         // WAJIB: SelectPiece dulu sebelum MakeMove sesuai dengan alur di Program.cs Anda
         if (!game.TrySelectPiece(fromPosition))
@@ -202,7 +202,7 @@ public class ChessController : ControllerBase
         var availableMoves = game.GetAvailableMovesForSelectedPiece();
         
         // Memastikan tujuan legal
-        if (availableMoves.Exists(m => m.row == toPosition.row && m.Column == toPosition.Column))
+        if (availableMoves.Exists(m => m.Row == toPosition.Row && m.Column == toPosition.Column))
         {
             var move = _mapper.Map<Move>(moveDto);
             if (!game.MakeMove(move))
@@ -268,7 +268,7 @@ public class ChessController : ControllerBase
         if (!_activeGames.TryGetValue(gameId, out var game))
             return NotFound("Game session not found.");
 
-        var position = new Postition { row = row, Column = col };
+        var position = new Postition { Row = row, Column = col };
         
         // Panggil TrySelectPiece dulu, baru GetSuggestedMoveForPiece
         if (game.TrySelectPiece(position))

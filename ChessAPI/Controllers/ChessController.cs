@@ -77,7 +77,7 @@ public class ChessController : ControllerBase
             return NotFound("Game session not found.");
 
         // Membentuk struct Postition asli sesuai typo pada model awal
-        var position = new Postition { row = row, Column = col };
+        var position = new Postition { Row = row, Column = col };
 
         // Memanggil TrySelectPiece bawaan Game.cs
         if (game.TrySelectPiece(position))
@@ -103,8 +103,8 @@ public class ChessController : ControllerBase
             Enum.TryParse(moveDto.PromotionType, out promotion);
         }
 
-        var fromPosition = new Postition { row = moveDto.From.Row, Column = moveDto.From.Column };
-        var toPosition = new Postition { row = moveDto.To.Row, Column = moveDto.To.Column };
+        var fromPosition = new Postition { Row = moveDto.From.Row, Column = moveDto.From.Column };
+        var toPosition = new Postition { Row = moveDto.To.Row, Column = moveDto.To.Column };
 
         // WAJIB: SelectPiece dulu sebelum MakeMove sesuai dengan alur di Program.cs Anda
         if (!game.TrySelectPiece(fromPosition))
@@ -115,14 +115,14 @@ public class ChessController : ControllerBase
         var availableMoves = game.GetAvailableMovesForSelectedPiece();
         
         // Memastikan tujuan legal
-        if (availableMoves.Exists(m => m.row == toPosition.row && m.Column == toPosition.Column))
+        if (availableMoves.Exists(m => m.Row == toPosition.Row && m.Column == toPosition.Column))
         {
             var move = new Move
             {
                 From = fromPosition,
                 To = toPosition,
                 Type = MoveType.Normal,
-                PromptionType = promotion // Sesuai nama property asli Anda
+                PromotionType = promotion // Sesuai nama property asli Anda
             };
 
             game.MakeMove(move);
@@ -148,8 +148,8 @@ public class ChessController : ControllerBase
                 {
                     botMoveInfo = new
                     {
-                        From = new { botMove.Value.From.row, botMove.Value.From.Column },
-                        To = new { botMove.Value.To.row, botMove.Value.To.Column }
+                        From = new { row = botMove.Value.From.Row, botMove.Value.From.Column },
+                        To = new { row = botMove.Value.To.Row, botMove.Value.To.Column }
                     };
                 }
             }
@@ -186,7 +186,7 @@ public class ChessController : ControllerBase
         if (!_activeGames.TryGetValue(gameId, out var game))
             return NotFound("Game session not found.");
 
-        var position = new Postition { row = row, Column = col };
+        var position = new Postition { Row = row, Column = col };
         
         // Panggil TrySelectPiece dulu, baru GetSuggestedMoveForPiece
         if (game.TrySelectPiece(position))
@@ -233,8 +233,8 @@ public class ChessController : ControllerBase
 
         var moveInfo = new
         {
-            From = new { botMove.Value.From.row, botMove.Value.From.Column },
-            To = new { botMove.Value.To.row, botMove.Value.To.Column },
+            From = new { row = botMove.Value.From.Row, botMove.Value.From.Column },
+            To = new { row = botMove.Value.To.Row, botMove.Value.To.Column },
             Color = botColor.ToString()
         };
 

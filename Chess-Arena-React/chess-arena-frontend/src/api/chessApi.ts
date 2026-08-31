@@ -105,16 +105,22 @@ export const chessApi = {
   },
 
   async makeMove(gameId: string, move: MoveDto): Promise<MoveResponse> {
-    const data = await request(`/${gameId}/moves`, {
-      method: 'POST',
-      body: JSON.stringify({
+      const body: Record<string, unknown> = {
         from: { row: move.from.row, column: move.from.column },
         to: { row: move.to.row, column: move.to.column },
-        promotionType: move.promotionType || 'Queen',
-      }),
-    });
-    return normalizeMoveResponse(data);
-  },
+      };
+      // Hanya disertakan saat memang ada pilihan promosi (pion mencapai ujung
+      // papan). Untuk langkah biasa, field ini tidak dikirim sama sekali --
+      // biar backend yang menentukan default Queen HANYA jika promosi terjadi.
+      if (move.promotionType) {
+        body.promotionType = move.promotionType;
+      }
+      const data = await request(`/${gameId}/moves`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      });
+      return normalizeMoveResponse(data);
+    },
 
   async getSuggestion(gameId: string, position: PositionDto): Promise<MoveDto | undefined> {
     const params = new URLSearchParams({

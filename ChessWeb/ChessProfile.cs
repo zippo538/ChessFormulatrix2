@@ -11,11 +11,11 @@ public class ChessProfile : Profile
     {
         // Konfigurasi Postition[cite: 18]
         CreateMap<Postition, PosititionDTO>()
-            .ForMember(dest => dest.Row, opt => opt.MapFrom(src => src.row))
+            .ForMember(dest => dest.Row, opt => opt.MapFrom(src => src.Row))
             .ForMember(dest => dest.Column, opt => opt.MapFrom(src => src.Column));
         
         CreateMap<PosititionDTO, Postition>()
-            .ForMember(dest => dest.row, opt => opt.MapFrom(src => src.Row))
+            .ForMember(dest => dest.Row, opt => opt.MapFrom(src => src.Row))
             .ForMember(dest => dest.Column, opt => opt.MapFrom(src => src.Column));
 
         // Konfigurasi Piece[cite: 16]
@@ -41,12 +41,12 @@ public class ChessProfile : Profile
 
         
         CreateMap<Move, MoveDTO>()
-            .ForMember(dest => dest.PromotionType, opt => opt.MapFrom(src => src.PromptionType))
+            .ForMember(dest => dest.PromotionType, opt => opt.MapFrom(src => src.PromotionType))
             .ForMember(dest => dest.Type, opt => opt.MapFrom(src => src.Type));
 
         CreateMap<MoveDTO, Move>()
             .ForMember(
-                dest => dest.PromptionType,
+                dest => dest.PromotionType,
                 opt => opt.MapFrom(src => src.PromotionType ?? PieceType.Queen))
             .ForMember(
                 dest => dest.Type,
