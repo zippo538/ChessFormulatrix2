@@ -28,7 +28,8 @@ public class ChessProfile : Profile
 
         // Konfigurasi Move[cite: 17]
         CreateMap<Move, MoveDTO>()
-            .ForMember(dest => dest.PromotionType, opt => opt.MapFrom(src => src.PromotionType.ToString()))
+            .ForMember(dest => dest.PromotionType, opt => opt.MapFrom(src => 
+                src.PromotionType == PieceType.None ? null : src.PromotionType.ToString()))
             .ForMember(dest => dest.Type, opt => opt.MapFrom(src => src.Type.ToString()));
 
         // Konfigurasi MoveHistory[cite: 13]

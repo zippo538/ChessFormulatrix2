@@ -457,7 +457,7 @@ export default function App() {
           <span className="brand__mark">♞</span>
           <span>
             <strong>CHESS</strong>
-            <em>ARENA</em>
+            <em> FORMUALTRIX</em>
           </span>
         </a>
         <div className="topbar__status">

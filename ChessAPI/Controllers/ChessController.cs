@@ -37,7 +37,7 @@ public class ChessController : ControllerBase
         // Membuat instance game menggunakan model asli dari ChessConsole
         var whitePlayer = new Player(whiteName, Color.White);
 
-        // VsBot=true  -> Hitam selalu "AI Bot".
+        // VsBot=true  -> Hitam dikendalikan bot Negamax internal.
         // VsBot=false -> dipakai untuk PvP maupun Latihan (sandbox dua sisi).
         //   Nama Hitam boleh kosong (mode Latihan tidak menampilkannya) -> fallback "Pemain Hitam".
         var blackName = request.VsBot
@@ -93,11 +93,12 @@ public class ChessController : ControllerBase
     [HttpPost("{gameId}/moves")]
     public IActionResult MakeMove(string gameId, [FromBody] MoveDTO moveDto)
     {
+        
         if (!_activeGames.TryGetValue(gameId, out var game))
             return NotFound("Game session not found.");
 
         // Validasi dan parsing PromotionType
-        PieceType promotion = PieceType.Queen;
+        PieceType promotion = PieceType.None;
         if (!string.IsNullOrEmpty(moveDto.PromotionType))
         {
             Enum.TryParse(moveDto.PromotionType, out promotion);
@@ -137,8 +138,8 @@ public class ChessController : ControllerBase
                 });
             }
 
-            // Mode vs Bot: giliran Hitam otomatis dibalas oleh Bot memakai
-            // engine Minimax + Alpha-Beta di Game.cs (lihat GetBestMove/MakeBotMove).
+            // Mode vs Bot: giliran Hitam otomatis dibalas oleh Negamax
+            // internal dengan validasi ChessDotNet di Game.cs.
             // Mode PvP (VsBot = false): dilewati, giliran Hitam menunggu input pemain.
             object? botMoveInfo = null;
             if (game.VsBot && game.GetColorsPlayer() == Color.Black)
@@ -223,7 +224,7 @@ public class ChessController : ControllerBase
         if (!game.VsBot)
             return BadRequest("Game ini adalah mode player vs player, tidak ada Bot untuk dijalankan.");
 
-        // Batasi depth agar pencarian Minimax tidak membebani server secara berlebihan
+        // Batasi depth agar pencarian Negamax tidak membebani server.
         var safeDepth = Math.Clamp(depth, 1, 4);
         var botColor = game.CurrentPlayer.PlayerColor;
 
@@ -287,5 +288,31 @@ public class ChessController : ControllerBase
         var historyDto = _mapper.Map<List<MoveHistoryDTO>>(history);
         
         return Ok(historyDto);
+    }
+    
+    // ==========================================
+    // 6. TIME STATUS
+    // ==========================================
+
+    [HttpGet("{gameId}/time-status")]
+    public IActionResult GetTimeStatus(string gameId)
+    {
+        if (!_activeGames.TryGetValue(gameId, out var game))
+            return NotFound("Game session not found.");
+
+        var status = game.CheckTimeStatus();
+        return Ok(new
+        {
+            WhiteRemainingSeconds = Math.Max(0, Math.Ceiling(status.WhiteRemaining.TotalSeconds)),
+            BlackRemainingSeconds = Math.Max(0, Math.Ceiling(status.BlackRemaining.TotalSeconds)),
+            CurrentTurn = game.GetColorsPlayer().ToString(),
+            TimeExpired = status.IsExpired,
+            TimedOutPlayer = status.TimedOutColor?.ToString(),
+            GameOver = game.GameResult.Type != GameOverType.None,
+            Reason = game.GameResult.Type.ToString(),
+            Winner = game.GameResult.Type == GameOverType.None
+                ? null
+                : game.GameResult.Winner.ToString()
+        });
     }
 }
