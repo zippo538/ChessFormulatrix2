@@ -1,4 +1,4 @@
-import { Bot, Clock3, Play, Sparkles, UserRound } from 'lucide-react';
+import { Bot, Clock3, Play, Sparkles, UserRound, Zap } from 'lucide-react';
 import type { GameMode } from '../types/chess';
 
 type GameSetupProps = {
@@ -45,14 +45,23 @@ export function GameSetup({
         <p className="eyebrow">Pertandingan baru</p>
         <h1 id="setup-title">Masuk ke arena.</h1>
         <p className="setup-dialog__lead">
-          {mode === 'bot'
-            ? 'Anda memegang Putih. Lawan AI Bot membaca saran langkah langsung dari mesin game.'
-            : 'Anda memegang Putih. Mainkan bersama teman secara bergantian di perangkat yang sama.'}
+          {mode === 'practice'
+            ? 'Latihan santai tanpa batas waktu dan tanpa lawan Bot. Anda bebas menggerakkan Putih maupun Hitam sendiri, tanpa perlu isi nama.'
+            : mode === 'bot'
+              ? 'Anda memegang Putih. Lawan AI Bot membaca saran langkah langsung dari mesin game.'
+              : 'Anda memegang Putih. Mainkan bersama teman secara bergantian di perangkat yang sama.'}
         </p>
 
         <fieldset className="setup-time">
           <legend>Mode permainan</legend>
           <div className="time-presets" aria-label="Pilihan mode permainan">
+            <button
+              className={mode === 'practice' ? 'time-preset time-preset--active' : 'time-preset'}
+              type="button"
+              onClick={() => onModeChange('practice')}
+            >
+              <Zap size={15} /> Latihan
+            </button>
             <button
               className={mode === 'bot' ? 'time-preset time-preset--active' : 'time-preset'}
               type="button"
@@ -70,16 +79,18 @@ export function GameSetup({
           </div>
         </fieldset>
 
-        <label className="field">
-          <span>Nama pemain Putih</span>
-          <input
-            value={name}
-            onChange={(event) => onNameChange(event.target.value)}
-            placeholder="Contoh: Budi"
-            maxLength={40}
-            autoFocus
-          />
-        </label>
+        {mode !== 'practice' && (
+          <label className="field">
+            <span>Nama pemain Putih</span>
+            <input
+              value={name}
+              onChange={(event) => onNameChange(event.target.value)}
+              placeholder="Contoh: Budi"
+              maxLength={40}
+              autoFocus
+            />
+          </label>
+        )}
 
         {mode === 'pvp' && (
           <label className="field">
@@ -93,52 +104,54 @@ export function GameSetup({
           </label>
         )}
 
-        <fieldset className="setup-time">
-          <legend><Clock3 size={16} /> Kontrol waktu</legend>
-          <div className="time-presets" aria-label="Pilihan cepat menit">
-            {timePresets.map((preset) => (
-              <button
-                className={minutes === preset ? 'time-preset time-preset--active' : 'time-preset'}
-                key={preset}
-                type="button"
-                onClick={() => onMinutesChange(preset)}
-              >
-                {preset}m
-              </button>
-            ))}
-          </div>
-          <div className="setup-time__grid">
-            <label className="field field--compact">
-              <span>Menit per pemain</span>
-              <input
-                type="number"
-                min={1}
-                max={180}
-                value={minutes}
-                onChange={(event) => onMinutesChange(Number(event.target.value))}
-              />
-            </label>
-            <label className="field field--compact">
-              <span>Increment / langkah</span>
-              <div className="input-suffix">
+        {mode !== 'practice' && (
+          <fieldset className="setup-time">
+            <legend><Clock3 size={16} /> Kontrol waktu</legend>
+            <div className="time-presets" aria-label="Pilihan cepat menit">
+              {timePresets.map((preset) => (
+                <button
+                  className={minutes === preset ? 'time-preset time-preset--active' : 'time-preset'}
+                  key={preset}
+                  type="button"
+                  onClick={() => onMinutesChange(preset)}
+                >
+                  {preset}m
+                </button>
+              ))}
+            </div>
+            <div className="setup-time__grid">
+              <label className="field field--compact">
+                <span>Menit per pemain</span>
                 <input
                   type="number"
-                  min={0}
-                  max={60}
-                  value={increment}
-                  onChange={(event) => onIncrementChange(Number(event.target.value))}
+                  min={1}
+                  max={180}
+                  value={minutes}
+                  onChange={(event) => onMinutesChange(Number(event.target.value))}
                 />
-                <span>detik</span>
-              </div>
-            </label>
-          </div>
-        </fieldset>
+              </label>
+              <label className="field field--compact">
+                <span>Increment / langkah</span>
+                <div className="input-suffix">
+                  <input
+                    type="number"
+                    min={0}
+                    max={60}
+                    value={increment}
+                    onChange={(event) => onIncrementChange(Number(event.target.value))}
+                  />
+                  <span>detik</span>
+                </div>
+              </label>
+            </div>
+          </fieldset>
+        )}
 
         {error && <p className="form-error" role="alert">{error}</p>}
 
         <button className="primary-button primary-button--wide" type="button" onClick={onSubmit} disabled={loading}>
           {loading ? <Sparkles className="spin" size={18} /> : <Play size={18} fill="currentColor" />}
-          {loading ? 'Menyiapkan papan…' : 'Mulai pertandingan'}
+          {loading ? 'Menyiapkan papan…' : mode === 'practice' ? 'Mulai latihan' : 'Mulai pertandingan'}
         </button>
         <p className="setup-dialog__footnote">Pilih bidak, lihat petak legal, lalu klik atau tarik ke tujuan.</p>
       </section>

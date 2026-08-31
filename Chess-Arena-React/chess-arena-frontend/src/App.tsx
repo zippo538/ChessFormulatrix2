@@ -74,6 +74,7 @@ export default function App() {
   const [playerName, setPlayerName] = useState('Pemain Putih');
   const [mode, setMode] = useState<GameMode>('bot');
   const [blackName, setBlackName] = useState('Pemain Hitam');
+  const isBotOpponent = mode === 'bot'; // hanya mode 'bot' yang lawannya AI
   const [minutes, setMinutes] = useState(10);
   const [increment, setIncrement] = useState(0);
   const [whiteMs, setWhiteMs] = useState(10 * 60_000);
@@ -110,7 +111,7 @@ export default function App() {
   }, [palette]);
 
   useEffect(() => {
-    if (phase !== 'playing') return;
+    if (phase !== 'playing' || mode === 'practice') return;
     let previous = Date.now();
     const timer = window.setInterval(() => {
       const now = Date.now();
@@ -130,7 +131,7 @@ export default function App() {
       }
     }, 200);
     return () => window.clearInterval(timer);
-  }, [phase, currentTurn]);
+  }, [phase, currentTurn, mode]);
 
   const historyRows = useMemo(() => {
     const rows: Array<{ number: number; white?: HistoryEntry; black?: HistoryEntry }> = [];
@@ -226,8 +227,10 @@ export default function App() {
         to: squareToPosition(toSquare),
         promotionType,
       });
-      addIncrement(movingColor);
-      if (mode === 'bot' && response.botMove) addIncrement('Black');
+      if (mode !== 'practice') {
+        addIncrement(movingColor);
+        if (mode === 'bot' && response.botMove) addIncrement('Black');
+      }
       setSelectedSquare(undefined);
       setValidMoves([]);
       await loadSnapshot(gameId);
@@ -240,7 +243,7 @@ export default function App() {
 
       const nextTurn = response.currentTurn || opposite(movingColor);
       setCurrentTurn(nextTurn);
-      if (mode === 'bot' && response.botMove) {
+      if (isBotOpponent && response.botMove) {
         setNotice(
           `AI Bot membalas: ${positionToSquare(response.botMove.from)} → ${positionToSquare(response.botMove.to)}.`,
         );
@@ -268,7 +271,7 @@ export default function App() {
 
   async function selectSquare(square: string) {
     if (!gameId || busy || phase !== 'playing') return;
-    if (mode === 'bot' && currentTurn !== 'White') return;
+    if (isBotOpponent && currentTurn !== 'White') return;
     if (selectedSquare && validMoves.includes(square)) {
       prepareMove(selectedSquare, square);
       return;
@@ -299,7 +302,7 @@ export default function App() {
 
   async function handleDrop(sourceSquare: string, targetSquare: string | null) {
     if (!targetSquare || !gameId || phase !== 'playing' || busy) return;
-    if (mode === 'bot' && currentTurn !== 'White') return;
+    if (isBotOpponent && currentTurn !== 'White') return;
     let moves = validMoves;
     if (selectedSquare !== sourceSquare) {
       try {
@@ -333,7 +336,7 @@ export default function App() {
 
   async function startGame() {
     const safeName = playerName.trim();
-    if (!safeName) {
+    if (mode !== 'practice' && !safeName) {
       setSetupError('Nama pemain Putih harus diisi.');
       return;
     }
@@ -348,9 +351,9 @@ export default function App() {
     setSetupError(undefined);
     try {
       const id = await chessApi.createGame({
-        whiteName: safeName,
+        whiteName: safeName || 'Anda',
         blackName: mode === 'pvp' ? safeBlackName : undefined,
-        vsBot: mode === 'bot',
+        vsBot: mode === 'bot', // hanya mode 'bot' yang melibatkan Bot di backend
       });
       setGameId(id);
       const initialTime = safeMinutes * 60_000;
@@ -433,10 +436,10 @@ export default function App() {
     canDragPiece: ({ piece }: { piece: { pieceType: string } }) =>
       phase === 'playing' &&
       !busy &&
-      (mode === 'pvp'
-        ? (currentTurn === 'White' && piece.pieceType.startsWith('w')) ||
-          (currentTurn === 'Black' && piece.pieceType.startsWith('b'))
-        : currentTurn === 'White' && piece.pieceType.startsWith('w')),
+      (isBotOpponent
+        ? currentTurn === 'White' && piece.pieceType.startsWith('w')
+        : (currentTurn === 'White' && piece.pieceType.startsWith('w')) ||
+          (currentTurn === 'Black' && piece.pieceType.startsWith('b'))),
     onPieceDrag: ({ square }: { square: string | null }) => {
       if (square) void selectSquare(square);
     },
@@ -478,7 +481,11 @@ export default function App() {
               <span className="live-dot" />
               {phase === 'playing' ? `Giliran ${colorLabel(currentTurn)}` : phase === 'over' ? 'Pertandingan selesai' : 'Menunggu game'}
             </div>
-            <span>{minutes}+{increment} • {mode === 'bot' ? 'vs AI' : 'vs Pemain'}</span>
+            <span>
+              {mode === 'practice'
+                ? 'Latihan • tanpa batas waktu'
+                : `${minutes}+${increment} • ${mode === 'bot' ? 'vs AI' : 'vs Pemain'}`}
+            </span>
           </div>
 
           {result && (
@@ -493,14 +500,16 @@ export default function App() {
           )}
 
           <div className={currentTurn === 'Black' && phase === 'playing' ? 'player-strip player-strip--active' : 'player-strip'}>
-            <div className={mode === 'bot' ? 'avatar avatar--bot' : 'avatar'}>
-              {mode === 'bot' ? <Bot size={21} /> : <UserRound size={21} />}
+            <div className={isBotOpponent ? 'avatar avatar--bot' : 'avatar'}>
+              {isBotOpponent ? <Bot size={21} /> : <UserRound size={21} />}
             </div>
             <div className="player-strip__identity">
-              <strong>{mode === 'bot' ? 'AI Bot' : blackName || 'Pemain Hitam'}</strong>
-              <span>{mode === 'bot' && busy ? 'Sedang berpikir…' : 'Hitam'}</span>
+              <strong>{isBotOpponent ? 'AI Bot' : blackName || 'Pemain Hitam'}</strong>
+              <span>{isBotOpponent && busy ? 'Sedang berpikir…' : 'Hitam'}</span>
             </div>
-            <ChessClock milliseconds={blackMs} active={currentTurn === 'Black' && phase === 'playing'} label="Waktu Hitam" />
+            {mode !== 'practice' && (
+              <ChessClock milliseconds={blackMs} active={currentTurn === 'Black' && phase === 'playing'} label="Waktu Hitam" />
+            )}
           </div>
 
           <div className={`board-frame${busy ? ' board-frame--busy' : ''}`}>
@@ -516,9 +525,11 @@ export default function App() {
             <div className="avatar"><UserRound size={21} /></div>
             <div className="player-strip__identity">
               <strong>{playerName || 'Pemain Putih'}</strong>
-              <span>{mode === 'bot' ? 'Putih • Anda' : 'Putih'}</span>
+              <span>{isBotOpponent ? 'Putih • Anda' : 'Putih'}</span>
             </div>
-            <ChessClock milliseconds={whiteMs} active={currentTurn === 'White' && phase === 'playing'} label="Waktu Putih" />
+            {mode !== 'practice' && (
+              <ChessClock milliseconds={whiteMs} active={currentTurn === 'White' && phase === 'playing'} label="Waktu Putih" />
+            )}
           </div>
 
           <div className="notice-line" aria-live="polite">
@@ -621,7 +632,7 @@ export default function App() {
             <div className="dialog-icon dialog-icon--danger"><Flag size={22} /></div>
             <h2 id="resign-title">Menyerah sekarang?</h2>
             <p>
-              {mode === 'bot' ? 'AI Bot' : blackName || 'Pemain Hitam'} akan dinyatakan menang dan sesi ini
+              {isBotOpponent ? 'AI Bot' : blackName || 'Pemain Hitam'} akan dinyatakan menang dan sesi ini
               berakhir.
             </p>
             <div className="dialog-actions">

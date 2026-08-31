@@ -30,15 +30,19 @@ public class ChessController : ControllerBase
     [HttpPost]
     public IActionResult CreateGame([FromBody] CreateGameDTO request)
     {
-        if (string.IsNullOrWhiteSpace(request.WhiteName))
-            return BadRequest("Nama pemain Putih wajib diisi.");
-
-        if (!request.VsBot && string.IsNullOrWhiteSpace(request.BlackName))
-            return BadRequest("Nama pemain Hitam wajib diisi untuk mode player vs player.");
+        // Nama Putih boleh kosong (mis. mode Latihan yang tidak menampilkan
+        // input nama sama sekali) -> fallback ke "Anda".
+        var whiteName = string.IsNullOrWhiteSpace(request.WhiteName) ? "Anda" : request.WhiteName;
 
         // Membuat instance game menggunakan model asli dari ChessConsole
-        var whitePlayer = new Player(request.WhiteName, Color.White);
-        var blackName = request.VsBot ? "AI Bot" : request.BlackName!;
+        var whitePlayer = new Player(whiteName, Color.White);
+
+        // VsBot=true  -> Hitam selalu "AI Bot".
+        // VsBot=false -> dipakai untuk PvP maupun Latihan (sandbox dua sisi).
+        //   Nama Hitam boleh kosong (mode Latihan tidak menampilkannya) -> fallback "Pemain Hitam".
+        var blackName = request.VsBot
+            ? "AI Bot"
+            : (string.IsNullOrWhiteSpace(request.BlackName) ? "Pemain Hitam" : request.BlackName);
         var blackPlayer = new Player(blackName, Color.Black);
 
         var game = new Game(whitePlayer, blackPlayer, request.VsBot);

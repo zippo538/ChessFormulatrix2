@@ -29,8 +29,11 @@ export type MoveDto = {
   promotionType?: PieceName;
 };
 
-// Mode pertandingan: melawan Bot (AI) atau player vs player lokal (satu layar).
-export type GameMode = 'bot' | 'pvp';
+// Mode pertandingan:
+// - 'practice' = latihan santai, tanpa batas waktu & tanpa perlu isi nama, selalu vs Bot.
+// - 'bot'      = lawan Bot dengan kontrol waktu (seperti sebelumnya).
+// - 'pvp'      = player vs player lokal (satu layar, bergantian).
+export type GameMode = 'practice' | 'bot' | 'pvp';
 
 export type MoveResponse = {
   gameOver: boolean;
