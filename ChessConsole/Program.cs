@@ -15,7 +15,7 @@ public class Program
 
         var whitePlayer = new Player(AskPlayerName("Nama pemain Putih", "Pemain Putih"), Color.White);
         var blackPlayer = new Player(AskPlayerName("Nama pemain Hitam", "Pemain Hitam"), Color.Black);
-        var game = new Game(whitePlayer, blackPlayer);
+        var game = new Game(whitePlayer, blackPlayer,false);
         var gameOver = false;
 
         game.OnGameOver += () => gameOver = true;
@@ -61,15 +61,15 @@ public class Program
             var toPosition = to.Value;
             
             var movingPiece = game.GetCurrentBoard()
-                .Tiles[fromPosition.row * 8 + fromPosition.Column]
+                .Tiles[fromPosition.Row * 8 + fromPosition.Column]
                 .ChessPiece;
 
             var promotionType = PieceType.Queen;
             var isPawnPromotion = movingPiece != null &&
                                   movingPiece.Type == PieceType.Pawn &&
-                                  (toPosition.row == 0 || toPosition.row == 7) &&
+                                  (toPosition.Row == 0 || toPosition.Row == 7) &&
                                   (availableMoves?.Exists(move =>
-                                      move.row == toPosition.row &&
+                                      move.Row == toPosition.Row &&
                                       move.Column == toPosition.Column) ?? false);
 
             if (isPawnPromotion)
@@ -82,7 +82,7 @@ public class Program
                 From = fromPosition,
                 To = toPosition,
                 Type = MoveType.Normal,
-                PromptionType = promotionType
+                PromotionType = promotionType
             });
         }
 
@@ -132,7 +132,7 @@ public class Program
         if (selectedPiece.HasValue)
         {
             var selected = selectedPiece.Value;
-            selectedChessPiece = board.Tiles[selected.row * 8 + selected.Column].ChessPiece;
+            selectedChessPiece = board.Tiles[selected.Row * 8 + selected.Column].ChessPiece;
         }
 
         for (var row = 7; row >= 0; row--)
@@ -143,10 +143,10 @@ public class Program
                 var piece = board.Tiles[row * 8 + col].ChessPiece;
                 var background = (row + col) % 2 == 0 ? "grey84" : "grey37";
 
-                bool isAvailableMove = availableMoves != null && availableMoves.Exists(m => m.row == row && m.Column == col);
+                bool isAvailableMove = availableMoves != null && availableMoves.Exists(m => m.Row == row && m.Column == col);
                 bool isCaptureMove = piece != null || (selectedChessPiece?.Type == PieceType.Pawn && selectedPiece.HasValue && selectedPiece.Value.Column != col);
 
-                if (selectedPiece.HasValue && selectedPiece.Value.row == row && selectedPiece.Value.Column == col)
+                if (selectedPiece.HasValue && selectedPiece.Value.Row == row && selectedPiece.Value.Column == col)
                 {
                     background = "blue"; 
                 }
@@ -243,14 +243,14 @@ public class Program
         var optionPositions = new Dictionary<string, Postition>();
         var choices = new List<string>();
         var selectedPiece = board.Tiles[
-            fromPosition.row * 8 + fromPosition.Column].ChessPiece;
+            fromPosition.Row * 8 + fromPosition.Column].ChessPiece;
 
         foreach (var position in availableMoves
-                     .OrderBy(move => move.row)
+                     .OrderBy(move => move.Row)
                      .ThenBy(move => move.Column))
         {
             var square = ToChessSquare(position);
-            var targetPiece = board.Tiles[position.row * 8 + position.Column].ChessPiece;
+            var targetPiece = board.Tiles[position.Row * 8 + position.Column].ChessPiece;
             var isCapture = targetPiece != null ||
                             (selectedPiece?.Type == PieceType.Pawn &&
                              fromPosition.Column != position.Column);
@@ -315,7 +315,7 @@ public class Program
                 if (piece == null || piece.PieceColor != currentColor)
                     continue;
 
-                var position = new Postition { row = row, Column = column };
+                var position = new Postition { Row = row, Column = column };
                 var square = ToChessSquare(position);
                 var label = $"{GetPieceChar(piece)} [bold]{piece.Type}[/] [grey]— {square}[/]";
 
@@ -367,7 +367,7 @@ public class Program
         if (selectedPiece.HasValue)
         {
             var selected = selectedPiece.Value;
-            selectedChessPiece = board.Tiles[selected.row * 8 + selected.Column].ChessPiece;
+            selectedChessPiece = board.Tiles[selected.Row * 8 + selected.Column].ChessPiece;
         }
 
         for (var row = 7; row >= 0; row--)
@@ -379,7 +379,7 @@ public class Program
                 var background = (row + col) % 2 == 0 ? "grey84" : "grey37";
 
                 // Cek apakah koordinat saat ini ada di dalam list availableMoves
-                bool isAvailableMove = availableMoves != null && availableMoves.Exists(m => m.row == row && m.Column == col);
+                bool isAvailableMove = availableMoves != null && availableMoves.Exists(m => m.Row == row && m.Column == col);
                 bool isCaptureMove = piece != null ||
                                      (selectedChessPiece?.Type == PieceType.Pawn &&
                                       selectedPiece.HasValue &&
@@ -387,7 +387,7 @@ public class Program
 
                 // Biru: bidak terpilih, hijau: langkah ke tile kosong,
                 // merah: langkah yang akan memakan bidak lawan.
-                if (selectedPiece.HasValue && selectedPiece.Value.row == row && selectedPiece.Value.Column == col)
+                if (selectedPiece.HasValue && selectedPiece.Value.Row == row && selectedPiece.Value.Column == col)
                 {
                     background = "blue"; 
                 }
@@ -477,10 +477,10 @@ public class Program
         }
 
         if (entry.PieceType == PieceType.Pawn &&
-            (entry.Move.To.row == 0 || entry.Move.To.row == 7))
+            (entry.Move.To.Row == 0 || entry.Move.To.Row == 7))
         {
             var promotedSymbol = GetPieceChar(
-                new Piece(entry.PieceColor, entry.Move.PromptionType));
+                new Piece(entry.PieceColor, entry.Move.PromotionType));
             return $"{pieceSymbol} {to} [bold green]={promotedSymbol}[/]";
         }
 
@@ -502,19 +502,19 @@ public class Program
     private static string ToChessSquare(Postition position)
     {
         var column = (char)('A' + position.Column);
-        return $"{column}{position.row + 1}";
+        return $"{column}{position.Row + 1}";
     }
 
 
     private static bool TryParsePosition(string input, out Postition position)
     {
-        position = new Postition { row = -1, Column = -1 };
+        position = new Postition { Row = -1, Column = -1 };
         input = input.Trim().ToLowerInvariant();
         if (input.Length != 2) return false;
         var col = input[0] - 'a';
         var row = input[1] - '1';
         if (col is < 0 or > 7 || row is < 0 or > 7) return false;
-        position = new Postition { row = row, Column = col };
+        position = new Postition { Row = row, Column = col };
         return true;
     }
     private static PieceType AskPromotionPiece()

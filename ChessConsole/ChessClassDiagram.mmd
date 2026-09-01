@@ -1,0 +1,211 @@
+classDiagram
+    class GameAPI{
+        %% Only for API Not Implementation
+        +GetCurrentTurn() Color
+        +GetWhiteTimer() TimeSpan
+        +GetBlackTimer() TimeSpan
+        +GetLegalMove() List
+        +GetCurrentBoard() Board
+        +GetMoveResult() MoveResult
+        +StartGame()
+        +SelectPiece(Position position)
+        +MakeMove(Move move)
+        +Resign(Player currentPlayer)
+        +OnGameOver event
+    }
+
+    class IGame{
+        <<interface>>
+        +StartGame()
+        +MakeMove(Move move)
+        +GetCurrentTurn() : Color
+        +GetCurrentBoard() : Board
+        +GetLegalMoves() :List
+        +GetMoveResult() :MoveResult
+        +GetWhiteTimer() :TimeSpan
+        +GetBlackTimer() :TimeSpan
+        +Resign() : GameOverResult
+        +OnGameOver :event
+    }
+
+    class Game{
+        #Game()
+        -Board _board
+        +Player WhitePlayer
+        +Player BlackPlayer
+        +Player CurrentPlayer
+        +ChessTimer WhiteTimer
+        +ChessTimer BlackTimer
+        -Piece selectedPiece
+        -Position[] _kingDirections
+        -Position[] _queenDirections
+        -Position[] _bishopDirections
+        -Position[] _knightDirections
+        -Position[] _rookDirections
+        -List _availableMoves
+        -Move _lastMove
+        -void OnWhiteTimeout()
+        -void OnBlackTimeout()
+        +void StartGame()
+        +void Resign(Player currentPlayer)
+        +void SelectPiece(Position position)
+        +void MakeMove(Move move)
+        -void EndGame(GameOverResult result)
+        -void CheckMoveResult()
+        -void RemoveEnPassantPawn(Move move)
+        -void MoveCastleRook(Move move)
+        -void MoveAndPromotePiece(Move move)
+        -void AddSlidingMoves(Piece piece, Position position, List moves)
+        -void AddPawnMoves(Piece piece, Position position, List moves)
+        -void AddFixedMoves(Piece piece, Position position, List moves)
+        -bool CanAttack(Piece piece, Position position)
+        -bool IsKingInCheck(Color currentSide)
+        -List GetLegalMoves(Piece piece, Position position, Move lastMove)
+        -List GetStandardMoves(Piece piece, Position position)
+        -List GetPromotionMoves(Piece piece, Position position, List moves)
+        -List GetCastleMoves(Piece piece, Position position)
+        -List GetEnPassantMoves(Piece piece, Position position, Move lastMove)
+        +MoveResult GetMoveResult(Color sideToMove, Move lastMove)
+        -List GetColorPieces(Color color)
+        -Position GetKingPosition(Color color)
+        +Board GetCurrentBoard()
+        +event Action OnGameOver
+    }
+
+    class IBoard{
+        <<interface>>
+    }
+
+    class Board{
+        +Board()
+        +Tile[] Tiles
+    }
+
+    class IPlayer{
+        <<interface>>
+        +string Name
+        +Color PlayerColor
+    }
+
+    class Player{
+        +string Name
+        +Color PlayerColor
+        +Player()
+    }
+
+    class ITimer{
+        <<interface>>
+        +TimeSpan RemainingTime
+        +event Action OnTimeOut
+        +void ResetTimer(TimeSpan time)
+        +void StartTimer()
+        +void StopTimer()
+    }
+
+    class ChessTimer{
+        -Timer _timer
+        +ChessTimer(TimeSpan initialTime)
+        +TimeSpan RemainingTime
+        +event Action OnTimeOut
+        +void ResetTimer(TimeSpan time)
+        +void StartTimer()
+        +void StopTimer()
+        -void OnTick()
+    }
+
+    class Tile{
+        +Piece ChessPiece
+        +Position TilePosition
+    }
+
+    class IPiece{
+        <<interface>>
+        +PieceColor Color
+        +Type PieceType
+        +HasMove bool
+    }
+
+    class Piece{
+        +Color PieceColor
+        +PieceType Type
+        +bool HasMove
+        +Piece(Color color, PieceType type)
+    }
+
+    class GameOverResult{
+        <<struct>>
+        +GameOverType Type
+        +Color Winner
+    }
+
+    class Move{
+        <<struct>>
+        +Position From
+        +Position To
+        +PieceType PromotionType
+        +MoveType Type
+    }
+
+    class Position{
+        <<struct>>
+        +int Row
+        +int Column
+    }
+
+    class Color{
+        <<enumeration>>
+        Black
+        White
+    }
+
+    class MoveResult{
+        <<enumeration>>
+        Normal
+        Checked
+        Checkmate
+        Stalemate
+    }
+
+    class GameOverType{
+        <<enumeration>>
+        Checkmate
+        Stalemate
+        Timeout
+        Resigned
+    }
+
+    class MoveType{
+        <<enumeration>>
+        Normal
+        EnPassant
+        Castling
+        Promotion
+    }
+
+    class PieceType{
+        <<enumeration>>
+        King
+        Queen
+        Bishop
+        Knight
+        Rook
+        Pawn
+    }
+
+    Game --> Board
+    Game --> GameOverResult : creates
+    Game "1" --> "2" ChessTimer : has
+    Game --> Move : executes
+    Game "1" --> "2" Player : has
+    Game --> MoveResult : creates
+    Piece --> Color : has
+    Piece --> PieceType : has
+    Board --> Tile : contains
+    Player --> Color : has
+    Move --> MoveType : has
+    Move --> PieceType : has
+    Move --> Position : has
+    Tile --> Piece : has
+    GameOverResult --> GameOverType : contains
+
+    note for Game "GetLegalMoves() generates standard moves using AddSlidingMoves(), AddFixedMoves(), and AddPawnMoves(). Special moves such as castling, en passant, and promotion are then added. Finally, moves that leave the king in check are filtered out using IsKingInCheck(). GetMoveResult() determines Normal, Checked, Checkmate, or Stalemate."

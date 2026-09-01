@@ -35,12 +35,6 @@ const enumOrder = (
     .split(',')
     .map((value: string) => value.trim());
 
-const colorEnumOrder = (
-    import.meta.env.VITE_COLOR_ENUM_ORDER
-)
-    .split(',')
-    .map((value: string) => value.trim().toLowerCase());
-
 function record(value: unknown): UnknownRecord {
   return value && typeof value === 'object' ? (value as UnknownRecord) : {};
 }
@@ -53,16 +47,8 @@ function first(source: UnknownRecord, keys: string[]): unknown {
 }
 
 export function normalizeColor(value: unknown): ChessColor | undefined {
-  const raw = String(value ?? '').trim().toLowerCase();
-  const numeric = typeof value === 'number' || /^\d+$/.test(raw)
-      ? Number(value)
-      : undefined;
-  const normalized = numeric !== undefined
-      ? colorEnumOrder[numeric]
-      : raw;
-
-  if (normalized === 'white') return 'White';
-  if (normalized === 'black') return 'Black';
+  if (value === 0 || String(value).toLowerCase() === 'white') return 'White';
+  if (value === 1 || String(value).toLowerCase() === 'black') return 'Black';
   return undefined;
 }
 
@@ -119,9 +105,7 @@ export function normalizeBoard(payload: unknown): BoardState {
     if (!color || !type) return;
 
     const tilePosition =
-        normalizePosition(
-            first(tile, ['tilePosition', 'TilePosition', 'position', 'Position']),
-        ) ??
+        normalizePosition(first(tile, ['position', 'Position'])) ??
         normalizePosition(tile) ?? {
           row: Math.floor(index / 8),
           column: index % 8,
@@ -203,4 +187,10 @@ export function readBoolean(source: unknown, keys: string[]): boolean {
 export function readString(source: unknown, keys: string[]): string | undefined {
   const value = first(record(source), keys);
   return value === undefined ? undefined : String(value);
+}
+
+export function readNumber(source: unknown, keys: string[]): number | undefined {
+  const value = first(record(source), keys);
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
 }

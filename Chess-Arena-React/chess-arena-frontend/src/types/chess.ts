@@ -29,11 +29,19 @@ export type MoveDto = {
   promotionType?: PieceName;
 };
 
+// Mode pertandingan:
+// - 'practice' = latihan santai, tanpa batas waktu & tanpa perlu isi nama, selalu vs Bot.
+// - 'bot'      = lawan Bot dengan kontrol waktu (seperti sebelumnya).
+// - 'pvp'      = player vs player lokal (satu layar, bergantian).
+export type GameMode = 'practice' | 'bot' | 'pvp';
+
 export type MoveResponse = {
   gameOver: boolean;
   currentTurn?: ChessColor;
   reason?: string;
   winner?: string;
+  // Terisi ketika backend otomatis membalas dengan langkah Bot (mode 'bot').
+  botMove?: MoveDto;
 };
 
 export type HistoryEntry = {

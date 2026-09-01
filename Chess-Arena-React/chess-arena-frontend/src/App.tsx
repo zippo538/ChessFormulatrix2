@@ -1,7 +1,7 @@
-
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Chessboard } from 'react-chessboard';
 import {
+  Bot,
   ChevronRight,
   CircleHelp,
   Flag,
@@ -16,7 +16,8 @@ import {
   WifiOff,
   X,
 } from 'lucide-react';
-import { ApiError, chessApi, colorLabel, createChessRealtime } from './api/chessApi';
+import { ApiError, chessApi, colorLabel } from './api/chessApi';
+import type { TimeStatusResponse } from './api/chessApi';
 import { BoardCustomizer } from './components/BoardCustomizer';
 import { ChessClock } from './components/ChessClock';
 import { GameSetup } from './components/GameSetup';
@@ -32,6 +33,7 @@ import type {
   BoardPalette,
   BoardState,
   ChessColor,
+  GameMode,
   HistoryEntry,
   MoveDto,
   PieceName,
@@ -70,10 +72,11 @@ export default function App() {
   const [phase, setPhase] = useState<GamePhase>('setup');
   const [setupOpen, setSetupOpen] = useState(true);
   const [gameId, setGameId] = useState<string>();
-  const [whitePlayerName, setWhitePlayerName] = useState('Pemain Putih');
-  const [blackPlayerName, setBlackPlayerName] = useState('Pemain Hitam');
+  const [playerName, setPlayerName] = useState('Pemain Putih');
+  const [mode, setMode] = useState<GameMode>('bot');
+  const [blackName, setBlackName] = useState('Pemain Hitam');
+  const isBotOpponent = mode === 'bot'; // hanya mode 'bot' yang lawannya AI
   const [minutes, setMinutes] = useState(10);
-  const [increment, setIncrement] = useState(0);
   const [whiteMs, setWhiteMs] = useState(10 * 60_000);
   const [blackMs, setBlackMs] = useState(10 * 60_000);
   const [currentTurn, setCurrentTurn] = useState<ChessColor>('White');
@@ -94,82 +97,49 @@ export default function App() {
 
   const phaseRef = useRef<GamePhase>(phase);
   const clocksRef = useRef({ white: whiteMs, black: blackMs });
-  const clockSyncRef = useRef({
-    white: whiteMs,
-    black: blackMs,
-    currentTurn: 'White' as ChessColor,
-    receivedAt: Date.now(),
-  });
 
   useEffect(() => {
     phaseRef.current = phase;
   }, [phase]);
 
-  useEffect(() => {
-    if (!gameId) return;
+  const finishGame = useCallback((reason?: string, winner?: string) => {
+    phaseRef.current = 'over';
+    setPhase('over');
+    setResult({
+      reason: reason || 'Permainan selesai',
+      winner: winner === 'White' || winner === 'Black' ? colorLabel(winner) : winner || 'Seri',
+    });
+  }, []);
 
-    const applyClock = (payload: {
-      whiteMs?: number;
-      blackMs?: number;
-      currentTurn?: ChessColor;
-      serverTimeUtc?: string;
-    }) => {
-      let white = payload.whiteMs;
-      let black = payload.blackMs;
+  const applyTimeStatus = useCallback(
+      (status: TimeStatusResponse) => {
+        const white = Math.max(0, status.whiteRemainingSeconds * 1000);
+        const black = Math.max(0, status.blackRemainingSeconds * 1000);
+        clocksRef.current = { white, black };
+        setWhiteMs(white);
+        setBlackMs(black);
+        if (status.currentTurn) setCurrentTurn(status.currentTurn);
 
-      if (payload.serverTimeUtc && payload.currentTurn) {
-        const serverTime = Date.parse(payload.serverTimeUtc);
-        if (Number.isFinite(serverTime)) {
-          const latency = Math.max(0, Date.now() - serverTime);
-          if (payload.currentTurn === 'White' && white !== undefined) {
-            white = Math.max(0, white - latency);
-          }
-          if (payload.currentTurn === 'Black' && black !== undefined) {
-            black = Math.max(0, black - latency);
+        if (status.gameOver) {
+          finishGame(status.reason, status.winner);
+          if (status.timeExpired && status.timedOutPlayer) {
+            setNotice(`Waktu ${colorLabel(status.timedOutPlayer)} habis.`);
+          } else {
+            setNotice('Pertandingan selesai.');
           }
         }
-      }
-
-      if (white !== undefined) clocksRef.current.white = white;
-      if (black !== undefined) clocksRef.current.black = black;
-
-      const turn = payload.currentTurn || clockSyncRef.current.currentTurn;
-      clockSyncRef.current = {
-        white: white ?? clocksRef.current.white,
-        black: black ?? clocksRef.current.black,
-        currentTurn: turn,
-        receivedAt: Date.now(),
-      };
-
-      if (white !== undefined) setWhiteMs(white);
-      if (black !== undefined) setBlackMs(black);
-      if (payload.currentTurn) setCurrentTurn(payload.currentTurn);
-    };
-
-    const realtime = createChessRealtime(gameId, {
-      onBoardUpdated: (payload) => {
-        if (payload.gameId && payload.gameId !== gameId) return;
-        if (payload.board) setBoard(normalizeBoard(payload.board));
-        applyClock(payload);
-        setSelectedSquare(undefined);
-        setValidMoves([]);
-        setSuggestedMove(undefined);
-        void chessApi.getHistory(gameId).then(setHistory).catch(() => undefined);
       },
-      onClockUpdated: (payload) => {
-        if (!payload.gameId || payload.gameId === gameId) applyClock(payload);
-      },
-      onGameOver: (payload) => {
-        applyClock(payload);
-        finishGame(payload.reason, payload.winner);
-        setNotice('Pertandingan selesai.');
-      },
-      onConnectionChanged: (connected) => setApiOffline(!connected),
-    });
+      [finishGame],
+  );
 
-    void realtime.start().catch(() => setApiOffline(true));
-    return () => void realtime.stop();
-  }, [gameId]);
+  const syncTimeStatus = useCallback(
+      async (id: string) => {
+        const status = await chessApi.getTimeStatus(id);
+        applyTimeStatus(status);
+        return status;
+      },
+      [applyTimeStatus],
+  );
 
   useEffect(() => {
     try {
@@ -180,23 +150,53 @@ export default function App() {
   }, [palette]);
 
   useEffect(() => {
-    if (phase !== 'playing') return;
+    if (phase !== 'playing' || mode === 'practice') return;
+    let previous = Date.now();
     const timer = window.setInterval(() => {
-      const snapshot = clockSyncRef.current;
-      const elapsed = Date.now() - snapshot.receivedAt;
-      setWhiteMs(
-          snapshot.currentTurn === 'White'
-              ? Math.max(0, snapshot.white - elapsed)
-              : snapshot.white,
-      );
-      setBlackMs(
-          snapshot.currentTurn === 'Black'
-              ? Math.max(0, snapshot.black - elapsed)
-              : snapshot.black,
-      );
-    }, 100);
+      const now = Date.now();
+      const elapsed = now - previous;
+      previous = now;
+      const key = currentTurn === 'White' ? 'white' : 'black';
+      const next = Math.max(0, clocksRef.current[key] - elapsed);
+      clocksRef.current[key] = next;
+      if (key === 'white') setWhiteMs(next);
+      else setBlackMs(next);
+
+    }, 200);
     return () => window.clearInterval(timer);
-  }, [phase]);
+  }, [phase, currentTurn, mode]);
+
+  useEffect(() => {
+    if (!gameId || phase !== 'playing' || mode === 'practice') return;
+
+    let cancelled = false;
+    let inFlight = false;
+    const synchronize = async () => {
+      if (inFlight) return;
+      inFlight = true;
+      try {
+        const status = await chessApi.getTimeStatus(gameId);
+        if (!cancelled) {
+          applyTimeStatus(status);
+          setApiOffline(false);
+        }
+      } catch {
+        if (!cancelled) {
+          setApiOffline(true);
+          setNotice('Gagal menyinkronkan waktu dengan server.');
+        }
+      } finally {
+        inFlight = false;
+      }
+    };
+
+    void synchronize();
+    const polling = window.setInterval(() => void synchronize(), 1000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(polling);
+    };
+  }, [applyTimeStatus, gameId, mode, phase]);
 
   const historyRows = useMemo(() => {
     const rows: Array<{ number: number; white?: HistoryEntry; black?: HistoryEntry }> = [];
@@ -251,33 +251,28 @@ export default function App() {
     return nextBoard;
   }
 
-  function finishGame(reason?: string, winner?: string) {
-    phaseRef.current = 'over';
-    setPhase('over');
-    setResult({
-      reason: reason || 'Permainan selesai',
-      winner: winner === 'White' || winner === 'Black' ? colorLabel(winner) : winner || 'Seri',
-    });
-  }
+  // Catatan: dulu ada logika AI client-side (findAiMove/playAiTurn) yang
+  // memilih langkah Hitam dengan memanggil /suggestion berulang kali per
+  // bidak. Itu sudah tidak diperlukan lagi: untuk mode 'bot', backend kini
+  // otomatis membalas dengan engine Minimax + Alpha-Beta miliknya sendiri
+  // di dalam satu request POST /moves (lihat ChessController.MakeMove &
+  // Game.MakeBotMove), dan mengirim balik langkah bot lewat `botMove`.
 
   async function playMove(fromSquare: string, toSquare: string, promotionType?: PieceName) {
     if (!gameId || busy || phase !== 'playing') return;
     setBusy(true);
     setSuggestedMove(undefined);
     try {
-      const move: MoveDto = {
+      const movingColor = currentTurn;
+      const response = await chessApi.makeMove(gameId, {
         from: squareToPosition(fromSquare),
         to: squareToPosition(toSquare),
-      };
-      if (promotionType) {
-        move.promotionType = promotionType;
-      }
-
-      const response = await chessApi.makeMove(gameId, move);
-
+        promotionType,
+      });
       setSelectedSquare(undefined);
       setValidMoves([]);
       await loadSnapshot(gameId);
+      if (mode !== 'practice') await syncTimeStatus(gameId);
       setApiOffline(false);
       if (response.gameOver) {
         finishGame(response.reason, response.winner);
@@ -285,12 +280,28 @@ export default function App() {
         return;
       }
 
-      const nextTurn = response.currentTurn || opposite(currentTurn);
+      const nextTurn = response.currentTurn || opposite(movingColor);
       setCurrentTurn(nextTurn);
-      setNotice(`Giliran ${colorLabel(nextTurn)}. Pilih bidak ${colorLabel(nextTurn)}.`);
+      if (isBotOpponent && response.botMove) {
+        setNotice(
+            `AI Bot membalas: ${positionToSquare(response.botMove.from)} → ${positionToSquare(response.botMove.to)}.`,
+        );
+      } else {
+        setNotice(`Giliran ${colorLabel(nextTurn)}.`);
+      }
     } catch (error) {
-      setApiOffline(true);
-      setNotice(getMessage(error));
+      if (error instanceof ApiError && error.status === 409 && gameId) {
+        try {
+          await syncTimeStatus(gameId);
+          setApiOffline(false);
+        } catch (syncError) {
+          setApiOffline(true);
+          setNotice(getMessage(syncError));
+        }
+      } else {
+        setApiOffline(true);
+        setNotice(getMessage(error));
+      }
     } finally {
       setBusy(false);
       setPendingPromotion(undefined);
@@ -309,6 +320,7 @@ export default function App() {
 
   async function selectSquare(square: string) {
     if (!gameId || busy || phase !== 'playing') return;
+    if (isBotOpponent && currentTurn !== 'White') return;
     if (selectedSquare && validMoves.includes(square)) {
       prepareMove(selectedSquare, square);
       return;
@@ -339,11 +351,7 @@ export default function App() {
 
   async function handleDrop(sourceSquare: string, targetSquare: string | null) {
     if (!targetSquare || !gameId || phase !== 'playing' || busy) return;
-    const movingPiece = board.pieces[sourceSquare];
-    if (!movingPiece || movingPiece.color !== currentTurn) {
-      setNotice(`Sekarang giliran ${colorLabel(currentTurn)}.`);
-      return;
-    }
+    if (isBotOpponent && currentTurn !== 'White') return;
     let moves = validMoves;
     if (selectedSquare !== sourceSquare) {
       try {
@@ -376,31 +384,33 @@ export default function App() {
   }
 
   async function startGame() {
-    const safeWhiteName = whitePlayerName.trim();
-    const safeBlackName = blackPlayerName.trim();
-    if (!safeWhiteName || !safeBlackName) {
-      setSetupError('Nama pemain Putih dan Hitam harus diisi.');
+    const safeName = playerName.trim();
+    if (mode !== 'practice' && !safeName) {
+      setSetupError('Nama pemain Putih harus diisi.');
+      return;
+    }
+    const safeBlackName = blackName.trim();
+    if (mode === 'pvp' && !safeBlackName) {
+      setSetupError('Nama pemain Hitam harus diisi.');
       return;
     }
     const safeMinutes = Math.min(180, Math.max(1, Number(minutes) || 10));
-    const safeIncrement = Math.min(60, Math.max(0, Number(increment) || 0));
     setBusy(true);
     setSetupError(undefined);
     try {
-      const id = await chessApi.createGame(safeWhiteName, safeBlackName, safeMinutes);
+      const id = await chessApi.createGame({
+        whiteName: safeName || 'Anda',
+        blackName: mode === 'pvp' ? safeBlackName : undefined,
+        vsBot: mode === 'bot', // hanya mode 'bot' yang melibatkan Bot di backend
+        minutes: safeMinutes,
+        clockEnabled: mode !== 'practice',
+      });
       setGameId(id);
       const initialTime = safeMinutes * 60_000;
       clocksRef.current = { white: initialTime, black: initialTime };
-      clockSyncRef.current = {
-        white: initialTime,
-        black: initialTime,
-        currentTurn: 'White',
-        receivedAt: Date.now(),
-      };
       setWhiteMs(initialTime);
       setBlackMs(initialTime);
       setMinutes(safeMinutes);
-      setIncrement(safeIncrement);
       setCurrentTurn('White');
       setHistory([]);
       setResult(undefined);
@@ -408,11 +418,14 @@ export default function App() {
       setValidMoves([]);
       setSuggestedMove(undefined);
       await loadSnapshot(id);
+      if (mode !== 'practice') {
+        await syncTimeStatus(id);
+      }
       phaseRef.current = 'playing';
       setPhase('playing');
       setSetupOpen(false);
       setApiOffline(false);
-      setNotice('Giliran Putih. Pilih bidak Putih.');
+      setNotice('Giliran Anda. Pilih bidak Putih.');
     } catch (error) {
       setApiOffline(true);
       setSetupError(`${getMessage(error)} Pastikan Chess API sedang berjalan.`);
@@ -427,8 +440,8 @@ export default function App() {
     setBusy(true);
     try {
       const response = await chessApi.resign(gameId);
-      finishGame(response.reason || 'Resigned', response.winner || colorLabel(opposite(currentTurn)));
-      setNotice(`${colorLabel(currentTurn)} menyerah. Pertandingan telah berakhir.`);
+      finishGame(response.reason || 'Resigned', response.winner || 'Black');
+      setNotice('Anda menyerah. Pertandingan telah berakhir.');
       setApiOffline(false);
     } catch (error) {
       setApiOffline(true);
@@ -475,13 +488,16 @@ export default function App() {
     canDragPiece: ({ piece }: { piece: { pieceType: string } }) =>
         phase === 'playing' &&
         !busy &&
-        piece.pieceType.startsWith(currentTurn === 'White' ? 'w' : 'b'),
+        (isBotOpponent
+            ? currentTurn === 'White' && piece.pieceType.startsWith('w')
+            : (currentTurn === 'White' && piece.pieceType.startsWith('w')) ||
+            (currentTurn === 'Black' && piece.pieceType.startsWith('b'))),
     onPieceDrag: ({ square }: { square: string | null }) => {
       if (square) void selectSquare(square);
     },
     onPieceDrop: ({ sourceSquare, targetSquare }: { sourceSquare: string; targetSquare: string | null }) => {
       void handleDrop(sourceSquare, targetSquare);
-      return true;
+      return false;
     },
     onSquareClick: ({ square }: { square: string }) => void selectSquare(square),
   };
@@ -493,7 +509,7 @@ export default function App() {
             <span className="brand__mark">♞</span>
             <span>
             <strong>CHESS</strong>
-            <em>ARENA</em>
+            <em> FORMUALTRIX</em>
           </span>
           </a>
           <div className="topbar__status">
@@ -517,7 +533,11 @@ export default function App() {
                 <span className="live-dot" />
                 {phase === 'playing' ? `Giliran ${colorLabel(currentTurn)}` : phase === 'over' ? 'Pertandingan selesai' : 'Menunggu game'}
               </div>
-              <span>{minutes}+{increment} • Pemain vs Pemain</span>
+              <span>
+              {mode === 'practice'
+                  ? 'Latihan • tanpa batas waktu'
+                  : `${minutes} menit • ${mode === 'bot' ? 'vs AI' : 'vs Pemain'}`}
+            </span>
             </div>
 
             {result && (
@@ -532,12 +552,16 @@ export default function App() {
             )}
 
             <div className={currentTurn === 'Black' && phase === 'playing' ? 'player-strip player-strip--active' : 'player-strip'}>
-              <div className="avatar"><UserRound size={21} /></div>
-              <div className="player-strip__identity">
-                <strong>{blackPlayerName || 'Pemain Hitam'}</strong>
-                <span>Hitam</span>
+              <div className={isBotOpponent ? 'avatar avatar--bot' : 'avatar'}>
+                {isBotOpponent ? <Bot size={21} /> : <UserRound size={21} />}
               </div>
-              <ChessClock milliseconds={blackMs} active={currentTurn === 'Black' && phase === 'playing'} label="Waktu Hitam" />
+              <div className="player-strip__identity">
+                <strong>{isBotOpponent ? 'AI Bot' : blackName || 'Pemain Hitam'}</strong>
+                <span>{isBotOpponent && busy ? 'Sedang berpikir…' : 'Hitam'}</span>
+              </div>
+              {mode !== 'practice' && (
+                  <ChessClock milliseconds={blackMs} active={currentTurn === 'Black' && phase === 'playing'} label="Waktu Hitam" />
+              )}
             </div>
 
             <div className={`board-frame${busy ? ' board-frame--busy' : ''}`}>
@@ -552,10 +576,12 @@ export default function App() {
             <div className={currentTurn === 'White' && phase === 'playing' ? 'player-strip player-strip--active' : 'player-strip'}>
               <div className="avatar"><UserRound size={21} /></div>
               <div className="player-strip__identity">
-                <strong>{whitePlayerName || 'Pemain Putih'}</strong>
-                <span>Putih</span>
+                <strong>{playerName || 'Pemain Putih'}</strong>
+                <span>{isBotOpponent ? 'Putih • Anda' : 'Putih'}</span>
               </div>
-              <ChessClock milliseconds={whiteMs} active={currentTurn === 'White' && phase === 'playing'} label="Waktu Putih" />
+              {mode !== 'practice' && (
+                  <ChessClock milliseconds={whiteMs} active={currentTurn === 'White' && phase === 'playing'} label="Waktu Putih" />
+              )}
             </div>
 
             <div className="notice-line" aria-live="polite">
@@ -619,16 +645,16 @@ export default function App() {
 
         <GameSetup
             open={setupOpen}
-            whitePlayerName={whitePlayerName}
-            blackPlayerName={blackPlayerName}
+            name={playerName}
+            mode={mode}
+            blackName={blackName}
             minutes={minutes}
-            increment={increment}
             loading={busy}
             error={setupError}
-            onWhitePlayerNameChange={setWhitePlayerName}
-            onBlackPlayerNameChange={setBlackPlayerName}
+            onNameChange={setPlayerName}
+            onModeChange={setMode}
+            onBlackNameChange={setBlackName}
             onMinutesChange={setMinutes}
-            onIncrementChange={setIncrement}
             onSubmit={startGame}
         />
 
@@ -655,7 +681,10 @@ export default function App() {
               <section className="small-dialog" role="alertdialog" aria-modal="true" aria-labelledby="resign-title">
                 <div className="dialog-icon dialog-icon--danger"><Flag size={22} /></div>
                 <h2 id="resign-title">Menyerah sekarang?</h2>
-                <p>{colorLabel(opposite(currentTurn))} akan dinyatakan menang dan sesi ini berakhir.</p>
+                <p>
+                  {isBotOpponent ? 'AI Bot' : blackName || 'Pemain Hitam'} akan dinyatakan menang dan sesi ini
+                  berakhir.
+                </p>
                 <div className="dialog-actions">
                   <button className="secondary-button" type="button" onClick={() => setConfirmResign(false)}>Lanjut bermain</button>
                   <button className="danger-button danger-button--solid" type="button" onClick={resign}>Ya, menyerah</button>

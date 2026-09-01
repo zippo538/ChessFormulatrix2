@@ -30,24 +30,41 @@ public class ChessController : ControllerBase
     [HttpPost]
     public IActionResult CreateGame([FromBody] CreateGameDTO request)
     {
-        if (string.IsNullOrWhiteSpace(request.WhiteName))
-            return BadRequest("Nama pemain Putih wajib diisi.");
-
-        if (!request.VsBot && string.IsNullOrWhiteSpace(request.BlackName))
-            return BadRequest("Nama pemain Hitam wajib diisi untuk mode player vs player.");
+        // Nama Putih boleh kosong (mis. mode Latihan yang tidak menampilkan
+        // input nama sama sekali) -> fallback ke "Anda".
+        var whiteName = string.IsNullOrWhiteSpace(request.WhiteName) ? "Anda" : request.WhiteName;
 
         // Membuat instance game menggunakan model asli dari ChessConsole
-        var whitePlayer = new Player(request.WhiteName, Color.White);
-        var blackName = request.VsBot ? "AI Bot" : request.BlackName!;
+        var whitePlayer = new Player(whiteName, Color.White);
+
+        // VsBot=true  -> Hitam dikendalikan bot Negamax internal.
+        // VsBot=false -> dipakai untuk PvP maupun Latihan (sandbox dua sisi).
+        //   Nama Hitam boleh kosong (mode Latihan tidak menampilkannya) -> fallback "Pemain Hitam".
+        var blackName = request.VsBot
+            ? "AI Bot"
+            : (string.IsNullOrWhiteSpace(request.BlackName) ? "Pemain Hitam" : request.BlackName);
         var blackPlayer = new Player(blackName, Color.Black);
 
-        var game = new Game(whitePlayer, blackPlayer, request.VsBot);
+        var minutes = Math.Clamp(request.Minutes, 1, 180);
+        var game = new Game(
+            whitePlayer,
+            blackPlayer,
+            request.VsBot,
+            minutes,
+            request.ClockEnabled);
         game.StartGame();
 
         var gameId = Guid.NewGuid().ToString();
         _activeGames.TryAdd(gameId, game);
 
-        return Ok(new { GameId = gameId, Message = "Game started", VsBot = request.VsBot });
+        return Ok(new
+        {
+            GameId = gameId,
+            Message = "Game started",
+            VsBot = request.VsBot,
+            Minutes = minutes,
+            ClockEnabled = request.ClockEnabled
+        });
     }
 
     [HttpGet("{gameId}/board")]
@@ -73,7 +90,7 @@ public class ChessController : ControllerBase
             return NotFound("Game session not found.");
 
         // Membentuk struct Postition asli sesuai typo pada model awal
-        var position = new Postition { row = row, Column = col };
+        var position = new Postition { Row = row, Column = col };
 
         // Memanggil TrySelectPiece bawaan Game.cs
         if (game.TrySelectPiece(position))
@@ -89,18 +106,31 @@ public class ChessController : ControllerBase
     [HttpPost("{gameId}/moves")]
     public IActionResult MakeMove(string gameId, [FromBody] MoveDTO moveDto)
     {
+        
         if (!_activeGames.TryGetValue(gameId, out var game))
             return NotFound("Game session not found.");
 
+        var timeStatus = game.CheckTimeStatus();
+        if (timeStatus.IsExpired)
+        {
+            return Conflict(new
+            {
+                GameOver = true,
+                Reason = GameOverType.Timeout.ToString(),
+                Winner = game.GameResult.Winner.ToString(),
+                TimedOutPlayer = timeStatus.TimedOutColor?.ToString()
+            });
+        }
+
         // Validasi dan parsing PromotionType
-        PieceType promotion = PieceType.Queen;
+        PieceType promotion = PieceType.None;
         if (!string.IsNullOrEmpty(moveDto.PromotionType))
         {
             Enum.TryParse(moveDto.PromotionType, out promotion);
         }
 
-        var fromPosition = new Postition { row = moveDto.From.Row, Column = moveDto.From.Column };
-        var toPosition = new Postition { row = moveDto.To.Row, Column = moveDto.To.Column };
+        var fromPosition = new Postition { Row = moveDto.From.Row, Column = moveDto.From.Column };
+        var toPosition = new Postition { Row = moveDto.To.Row, Column = moveDto.To.Column };
 
         // WAJIB: SelectPiece dulu sebelum MakeMove sesuai dengan alur di Program.cs Anda
         if (!game.TrySelectPiece(fromPosition))
@@ -111,14 +141,14 @@ public class ChessController : ControllerBase
         var availableMoves = game.GetAvailableMovesForSelectedPiece();
         
         // Memastikan tujuan legal
-        if (availableMoves.Exists(m => m.row == toPosition.row && m.Column == toPosition.Column))
+        if (availableMoves.Exists(m => m.Row == toPosition.Row && m.Column == toPosition.Column))
         {
             var move = new Move
             {
                 From = fromPosition,
                 To = toPosition,
                 Type = MoveType.Normal,
-                PromptionType = promotion // Sesuai nama property asli Anda
+                PromotionType = promotion // Sesuai nama property asli Anda
             };
 
             game.MakeMove(move);
@@ -133,8 +163,8 @@ public class ChessController : ControllerBase
                 });
             }
 
-            // Mode vs Bot: giliran Hitam otomatis dibalas oleh Bot memakai
-            // engine Minimax + Alpha-Beta di Game.cs (lihat GetBestMove/MakeBotMove).
+            // Mode vs Bot: giliran Hitam otomatis dibalas oleh Negamax
+            // internal dengan validasi ChessDotNet di Game.cs.
             // Mode PvP (VsBot = false): dilewati, giliran Hitam menunggu input pemain.
             object? botMoveInfo = null;
             if (game.VsBot && game.GetColorsPlayer() == Color.Black)
@@ -144,8 +174,8 @@ public class ChessController : ControllerBase
                 {
                     botMoveInfo = new
                     {
-                        From = new { botMove.Value.From.row, botMove.Value.From.Column },
-                        To = new { botMove.Value.To.row, botMove.Value.To.Column }
+                        From = new { row = botMove.Value.From.Row, botMove.Value.From.Column },
+                        To = new { row = botMove.Value.To.Row, botMove.Value.To.Column }
                     };
                 }
             }
@@ -182,7 +212,7 @@ public class ChessController : ControllerBase
         if (!_activeGames.TryGetValue(gameId, out var game))
             return NotFound("Game session not found.");
 
-        var position = new Postition { row = row, Column = col };
+        var position = new Postition { Row = row, Column = col };
         
         // Panggil TrySelectPiece dulu, baru GetSuggestedMoveForPiece
         if (game.TrySelectPiece(position))
@@ -219,7 +249,19 @@ public class ChessController : ControllerBase
         if (!game.VsBot)
             return BadRequest("Game ini adalah mode player vs player, tidak ada Bot untuk dijalankan.");
 
-        // Batasi depth agar pencarian Minimax tidak membebani server secara berlebihan
+        var timeStatus = game.CheckTimeStatus();
+        if (timeStatus.IsExpired)
+        {
+            return Conflict(new
+            {
+                GameOver = true,
+                Reason = GameOverType.Timeout.ToString(),
+                Winner = game.GameResult.Winner.ToString(),
+                TimedOutPlayer = timeStatus.TimedOutColor?.ToString()
+            });
+        }
+
+        // Batasi depth agar pencarian Negamax tidak membebani server.
         var safeDepth = Math.Clamp(depth, 1, 4);
         var botColor = game.CurrentPlayer.PlayerColor;
 
@@ -229,8 +271,8 @@ public class ChessController : ControllerBase
 
         var moveInfo = new
         {
-            From = new { botMove.Value.From.row, botMove.Value.From.Column },
-            To = new { botMove.Value.To.row, botMove.Value.To.Column },
+            From = new { row = botMove.Value.From.Row, botMove.Value.From.Column },
+            To = new { row = botMove.Value.To.Row, botMove.Value.To.Column },
             Color = botColor.ToString()
         };
 
@@ -254,7 +296,33 @@ public class ChessController : ControllerBase
     }
 
     // ==========================================
-    // 5. GAME ACTIONS
+    // 5. TIME STATUS
+    // ==========================================
+
+    [HttpGet("{gameId}/time-status")]
+    public IActionResult GetTimeStatus(string gameId)
+    {
+        if (!_activeGames.TryGetValue(gameId, out var game))
+            return NotFound("Game session not found.");
+
+        var status = game.CheckTimeStatus();
+        return Ok(new
+        {
+            WhiteRemainingSeconds = Math.Max(0, Math.Ceiling(status.WhiteRemaining.TotalSeconds)),
+            BlackRemainingSeconds = Math.Max(0, Math.Ceiling(status.BlackRemaining.TotalSeconds)),
+            CurrentTurn = game.GetColorsPlayer().ToString(),
+            TimeExpired = status.IsExpired,
+            TimedOutPlayer = status.TimedOutColor?.ToString(),
+            GameOver = game.GameResult.Type != GameOverType.None,
+            Reason = game.GameResult.Type.ToString(),
+            Winner = game.GameResult.Type == GameOverType.None
+                ? null
+                : game.GameResult.Winner.ToString()
+        });
+    }
+
+    // ==========================================
+    // 6. GAME ACTIONS
     // ==========================================
 
     [HttpPost("{gameId}/resign")]

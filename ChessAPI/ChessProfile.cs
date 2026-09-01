@@ -1,4 +1,5 @@
 using AutoMapper;
+using ChessConsole.Enums;
 using ChessConsole.Model;
 using ChessWeb.DTO;
 
@@ -10,7 +11,7 @@ public class ChessProfile : Profile
     {
         // Konfigurasi Postition[cite: 18]
         CreateMap<Postition, PosititionDTO>()
-            .ForMember(dest => dest.Row, opt => opt.MapFrom(src => src.row))
+            .ForMember(dest => dest.Row, opt => opt.MapFrom(src => src.Row))
             .ForMember(dest => dest.Column, opt => opt.MapFrom(src => src.Column));
 
         // Konfigurasi Piece[cite: 16]
@@ -27,7 +28,8 @@ public class ChessProfile : Profile
 
         // Konfigurasi Move[cite: 17]
         CreateMap<Move, MoveDTO>()
-            .ForMember(dest => dest.PromotionType, opt => opt.MapFrom(src => src.PromptionType.ToString()))
+            .ForMember(dest => dest.PromotionType, opt => opt.MapFrom(src => 
+                src.PromotionType == PieceType.None ? null : src.PromotionType.ToString()))
             .ForMember(dest => dest.Type, opt => opt.MapFrom(src => src.Type.ToString()));
 
         // Konfigurasi MoveHistory[cite: 13]
@@ -35,7 +37,16 @@ public class ChessProfile : Profile
             .ForMember(dest => dest.PieceType, opt => opt.MapFrom(src => src.PieceType.ToString()))
             .ForMember(dest => dest.PieceColor, opt => opt.MapFrom(src => src.PieceColor.ToString()))
             .ForMember(dest => dest.CapturedPieceType, opt => opt.MapFrom(src => 
-                src.CapturedPieceType.HasValue ? src.CapturedPieceType.Value.ToString() : null));
+                src.CapturedPieceType.HasValue ? src.CapturedPieceType.Value.ToString() : null))
+            .AfterMap((src, dest) =>
+            {
+                bool isRealPromotion = src.PieceType == PieceType.Pawn &&
+                                       (src.Move.To.Row == 0 || src.Move.To.Row == 7);
+                if (!isRealPromotion && dest.Move != null)
+                {
+                    dest.Move.PromotionType = null;
+                }
+            });
 
         // Konfigurasi Player[cite: 14]
         CreateMap<Player, PlayerDTO>()
