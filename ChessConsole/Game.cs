@@ -37,8 +37,8 @@ public class Game : IGame
     public bool VsBot { get; private set; }
 
     public Game(
-        Player whitePlayer,
-        Player blackPlayer,
+        Player? whitePlayer,
+        Player? blackPlayer,
         bool vsBot = true,
         int initialMinutes = 10,
         bool clockEnabled = true)
