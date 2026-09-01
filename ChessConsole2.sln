@@ -2,8 +2,6 @@
 Microsoft Visual Studio Solution File, Format Version 12.00
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ChessConsole", "ChessConsole\ChessConsole.csproj", "{8C32A5EF-E903-45A7-A29E-8492B79890BC}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ChessWeb", "ChessWeb\ChessWeb.csproj", "{F03D5492-6DDD-4B39-B6AA-C70B13C4222A}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ChessAPI", "ChessAPI\ChessAPI.csproj", "{D578AB75-2974-4D0A-8059-1542BDA72D1C}"
 EndProject
 Global
@@ -16,10 +14,6 @@ Global
 		{8C32A5EF-E903-45A7-A29E-8492B79890BC}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{8C32A5EF-E903-45A7-A29E-8492B79890BC}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{8C32A5EF-E903-45A7-A29E-8492B79890BC}.Release|Any CPU.Build.0 = Release|Any CPU
-		{F03D5492-6DDD-4B39-B6AA-C70B13C4222A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{F03D5492-6DDD-4B39-B6AA-C70B13C4222A}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{F03D5492-6DDD-4B39-B6AA-C70B13C4222A}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{F03D5492-6DDD-4B39-B6AA-C70B13C4222A}.Release|Any CPU.Build.0 = Release|Any CPU
 		{D578AB75-2974-4D0A-8059-1542BDA72D1C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{D578AB75-2974-4D0A-8059-1542BDA72D1C}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{D578AB75-2974-4D0A-8059-1542BDA72D1C}.Release|Any CPU.ActiveCfg = Release|Any CPU

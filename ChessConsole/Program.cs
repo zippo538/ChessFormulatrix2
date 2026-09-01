@@ -15,7 +15,7 @@ public class Program
 
         var whitePlayer = new Player(AskPlayerName("Nama pemain Putih", "Pemain Putih"), Color.White);
         var blackPlayer = new Player(AskPlayerName("Nama pemain Hitam", "Pemain Hitam"), Color.Black);
-        var game = new Game(whitePlayer, blackPlayer);
+        var game = new Game(whitePlayer, blackPlayer,false);
         var gameOver = false;
 
         game.OnGameOver += () => gameOver = true;
