@@ -1,14 +1,18 @@
+using System.Reflection;
+using System.Runtime.Serialization;
+using NUnit.Framework;
 using ChessConsole.Enums;
 using ChessConsole.Model;
 
 namespace Game.Tests;
 
 [TestFixture]
+[NonParallelizable]
 public class MakeMoveTests
 {
     private Player _whitePlayer = null!;
     private Player _blackPlayer = null!;
-    private ChessConsole.Game _game = null!;
+    private ChessConsole2.Game _game = null!;
 
     [SetUp]
     public void Setup()
@@ -16,7 +20,7 @@ public class MakeMoveTests
         _whitePlayer = new Player("Mahindra", Color.White);
         _blackPlayer =  new Player("Saputra", Color.Black);
         
-        _game = new ChessConsole.Game(_whitePlayer, _blackPlayer,vsBot:true);
+        _game = new ChessConsole2.Game(_whitePlayer, _blackPlayer,vsBot:true);
         _game.StartGame();
     }
     //Pawn Test
@@ -324,6 +328,71 @@ public class MakeMoveTests
         Assert.That(lastHistory.CapturedPieceType, Is.EqualTo(PieceType.Rook));
         Assert.That(_game.CurrentPlayer.PlayerColor, Is.EqualTo(Color.Black));
     }
+    // check checkmate with FoolsMate
+    [Test]
+    public void MakeMove_FoolsMate_SetsCheckmateAndBlackAsWinner()
+    {
+        var game = CreateStartedGame(clockEnabled: false);
+
+        Move(game, 1, 5, 2, 5); // f2-f3
+        Move(game, 6, 4, 4, 4); // e7-e5
+        Move(game, 1, 6, 3, 6); // g2-g4
+        Move(game, 7, 3, 3, 7); // Qd8-h4#
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(game.GameResult.Type, Is.EqualTo(GameOverType.Checkmate));
+            Assert.That(game.GameResult.Winner, Is.EqualTo(Color.Black));
+            Assert.That(game.GetMoveResult(), Is.EqualTo(MoveResult.Checkmate));
+        });
+    }
+
+    [Test]
+    // check StaleMate
+    public void MakeMove_WhenOpponentHasNoLegalMoveAndIsNotChecked_SetsStalemate()
+    {
+        var game = CreateStartedGame(clockEnabled: false);
+        var board = game.GetCurrentBoard();
+
+        ClearBoard(board);
+
+        // Posisi sebelum Qc7-b6:
+        // Black: Ka8. White: Kc6, Qc7. Setelah Qb6, semua petak gerak
+        // raja hitam diserang, tetapi Ka8 sendiri tidak sedang diserang.
+        Place(board, 7, 0, Color.Black, PieceType.King); // a8
+        Place(board, 5, 2, Color.White, PieceType.King); // c6
+        Place(board, 6, 2, Color.White, PieceType.Queen); // c7
+
+        Move(game, 6, 2, 5, 1); // Qc7-b6
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(game.GameResult.Type, Is.EqualTo(GameOverType.Stalemate));
+            Assert.That(game.GetMoveResult(), Is.EqualTo(MoveResult.Stalemate));
+        });
+    }
+    // check timeout
+    [Test]
+    public void CheckTimeStatus_WhenWhiteTimeIsZero_SetsTimeoutAndBlackAsWinner()
+    {
+        var game = CreateStartedGame(clockEnabled: true);
+        bool gameOverRaised = false;
+        game.OnGameOver += () => gameOverRaised = true;
+
+        SetPrivateField(game, "_whiteRemaining", TimeSpan.Zero);
+
+        var status = game.CheckTimeStatus();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(status.IsExpired, Is.True);
+            Assert.That(status.TimedOutColor, Is.EqualTo(Color.White));
+            Assert.That(status.WhiteRemaining, Is.EqualTo(TimeSpan.Zero));
+            Assert.That(game.GameResult.Type, Is.EqualTo(GameOverType.Timeout));
+            Assert.That(game.GameResult.Winner, Is.EqualTo(Color.Black));
+            Assert.That(gameOverRaised, Is.True);
+        });
+    }
     private Board PrepareCleanBoardWithKings()
     {
         var board = _game.GetCurrentBoard();
@@ -340,6 +409,129 @@ public class MakeMoveTests
 
         return board;
     }
+    private static ChessConsole2.Game CreateStartedGame(bool clockEnabled)
+    {
+        var white = CreatePlayer(Color.White);
+        var black = CreatePlayer(Color.Black);
+        var game = new ChessConsole2.Game(
+            white,
+            black,
+            vsBot: false,
+            initialMinutes: 10,
+            clockEnabled: clockEnabled);
+
+        game.StartGame();
+        return game;
+    }
+     private static void Move(ChessConsole2.Game game, int fromRow, int fromColumn, int toRow, int toColumn)
+    {
+        var from = new Postition { Row = fromRow, Column = fromColumn };
+        var to = new Postition { Row = toRow, Column = toColumn };
+
+        Assert.That(
+            game.TrySelectPiece(from),
+            Is.True,
+            $"Bidak pada ({fromRow}, {fromColumn}) tidak dapat dipilih.");
+
+        Assert.That(
+            game.MakeMove(new Move
+            {
+                From = from,
+                To = to,
+                Type = MoveType.Normal,
+                PromotionType = PieceType.None
+            }),
+            Is.True,
+            $"Langkah ({fromRow}, {fromColumn}) ke ({toRow}, {toColumn}) ditolak.");
+    }
+
+    private static void ClearBoard(Board board)
+    {
+        foreach (var tile in board.Tiles)
+            tile.ChessPiece = null;
+    }
+
+    private static void Place(
+        Board board,
+        int row,
+        int column,
+        Color color,
+        PieceType pieceType)
+    {
+        board.Tiles[row * 8 + column].ChessPiece = new Piece(color, pieceType);
+    }
+
+    // Game hanya membaca PlayerColor. Helper ini membuat test tidak terikat
+    // pada bentuk konstruktor Player yang tidak disertakan bersama Game.cs.
+    private static Player CreatePlayer(Color color)
+    {
+        foreach (var constructor in typeof(Player)
+                     .GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                     .OrderBy(candidate => candidate.GetParameters().Length))
+        {
+            try
+            {
+                var arguments = constructor.GetParameters()
+                    .Select(parameter => CreateArgument(parameter.ParameterType, color))
+                    .ToArray();
+                var player = (Player)constructor.Invoke(arguments);
+                SetColorMember(player, color);
+                return player;
+            }
+            catch
+            {
+                // Coba konstruktor lain; fallback di bawah menangani model
+                // yang tidak menyediakan konstruktor yang dapat dipanggil.
+            }
+        }
+
+#pragma warning disable SYSLIB0050
+        var uninitialized = (Player)FormatterServices.GetUninitializedObject(typeof(Player));
+#pragma warning restore SYSLIB0050
+        SetColorMember(uninitialized, color);
+        return uninitialized;
+    }
+
+    private static object? CreateArgument(Type type, Color color)
+    {
+        if (type == typeof(Color)) return color;
+        if (type == typeof(string)) return color.ToString();
+        if (type.IsValueType) return Activator.CreateInstance(type);
+        return null;
+    }
+
+    private static void SetColorMember(Player player, Color color)
+    {
+        const BindingFlags flags =
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+
+        var property = typeof(Player).GetProperty("PlayerColor", flags);
+        if (property?.SetMethod != null)
+        {
+            property.SetValue(player, color);
+            return;
+        }
+
+        var field = typeof(Player).GetField("PlayerColor", flags)
+                    ?? typeof(Player).GetField("_playerColor", flags)
+                    ?? typeof(Player).GetField("<PlayerColor>k__BackingField", flags);
+
+        if (field == null)
+            throw new InvalidOperationException("Member Player.PlayerColor tidak ditemukan.");
+
+        field.SetValue(player, color);
+    }
+
+    private static void SetPrivateField<T>(ChessConsole2.Game game, string fieldName, T value)
+    {
+        var field = typeof(ChessConsole2.Game).GetField(
+            fieldName,
+            BindingFlags.Instance | BindingFlags.NonPublic);
+
+        Assert.That(field, Is.Not.Null, $"Field private {fieldName} tidak ditemukan.");
+        field!.SetValue(game, value);
+    }
+    
 }
     
     

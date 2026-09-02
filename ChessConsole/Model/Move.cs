@@ -2,7 +2,7 @@ using ChessConsole.Enums;
 
 namespace ChessConsole.Model;
 
-public struct Move
+public record struct Move
 {
     public Postition From { get; set; }
     public Postition To { get; set; }

@@ -2,6 +2,7 @@ using Spectre.Console;
 using Spectre.Console.Rendering;
 using ChessConsole.Enums;
 using ChessConsole.Model;
+using ChessConsole2;
 using Color = ChessConsole.Enums.Color;
 
 namespace ChessConsole;

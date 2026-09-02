@@ -8,7 +8,7 @@ public class GameTimerTest
 {
     private Player _whitePlayer = null!;
         private Player _blackPlayer = null!;
-        private ChessConsole.Game _game = null!;
+        private ChessConsole2.Game _game = null!;
 
         [SetUp]
         public void Setup()
@@ -24,7 +24,7 @@ public class GameTimerTest
         public void StartGame_ShouldInitializeTimerWithConfiguredMinutes()
         {
             // Arrange
-            _game = new ChessConsole.Game(_whitePlayer, _blackPlayer, vsBot: false, initialMinutes: 5, clockEnabled: true);
+            _game = new ChessConsole2.Game(_whitePlayer, _blackPlayer, vsBot: false, initialMinutes: 5, clockEnabled: true);
 
             // Act
             _game.StartGame();
@@ -41,7 +41,7 @@ public class GameTimerTest
         public void CheckTimeStatus_WhenClockDisabled_ShouldNotDeductTime()
         {
             // Arrange: Game dibuat dengan clockEnabled = false
-            _game = new ChessConsole.Game(_whitePlayer, _blackPlayer, vsBot: false, initialMinutes: 10, clockEnabled: false);
+            _game = new ChessConsole2.Game(_whitePlayer, _blackPlayer, vsBot: false, initialMinutes: 10, clockEnabled: false);
             _game.StartGame();
 
             // Act: Simulasikan jeda 100ms
@@ -60,7 +60,7 @@ public class GameTimerTest
         public void MakeMove_ShouldDeductActivePlayerTimeAfterTurnSwitch()
         {
             // Arrange
-            _game = new ChessConsole.Game(_whitePlayer, _blackPlayer, vsBot: false, initialMinutes: 10, clockEnabled: true);
+            _game = new ChessConsole2.Game(_whitePlayer, _blackPlayer, vsBot: false, initialMinutes: 10, clockEnabled: true);
             _game.StartGame();
 
             // Simulasikan jeda berpikir pemain Putih
@@ -100,7 +100,7 @@ public class GameTimerTest
         public void DeclareTimeout_WhenWhiteTimeOut_ShouldSetWinnerToBlackAndEndGame()
         {
             // Arrange: Inisialisasi game 1 menit
-            _game = new ChessConsole.Game(_whitePlayer, _blackPlayer, vsBot: false, initialMinutes: 1, clockEnabled: true);
+            _game = new ChessConsole2.Game(_whitePlayer, _blackPlayer, vsBot: false, initialMinutes: 1, clockEnabled: true);
             _game.StartGame();
 
             _game.OnGameOver += () => _ = true;
@@ -126,7 +126,7 @@ public class GameTimerTest
         public void CheckTimeStatus_WhenTimeExpired_ShouldDeclareTimeoutCorrectly()
         {
             // Arrange: Buat game minimal 1 menit
-            _game = new ChessConsole.Game(_whitePlayer, _blackPlayer, vsBot: false, initialMinutes: 1, clockEnabled: true);
+            _game = new ChessConsole2.Game(_whitePlayer, _blackPlayer, vsBot: false, initialMinutes: 1, clockEnabled: true);
             _game.StartGame();
 
             // Act: Cek time status awal

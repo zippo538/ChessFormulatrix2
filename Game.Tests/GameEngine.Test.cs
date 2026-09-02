@@ -7,7 +7,7 @@ public class GameEngineTest
 {
     private Player _whitePlayer = null!;
     private Player _blackPlayer = null!;
-    private ChessConsole.Game _game = null!;
+    private ChessConsole2.Game _game = null!;
 
     [SetUp]
     public void Setup()
@@ -15,7 +15,7 @@ public class GameEngineTest
         _whitePlayer = new Player("Mahindra", Color.White);
         _blackPlayer =  new Player("Saputra", Color.Black);
         
-        _game = new ChessConsole.Game(_whitePlayer, _blackPlayer,vsBot:true);
+        _game = new ChessConsole2.Game(_whitePlayer, _blackPlayer,vsBot:true);
         _game.StartGame();
     }
         // ==========================================

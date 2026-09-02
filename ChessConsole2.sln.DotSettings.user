@@ -3,6 +3,11 @@
 	<s:String x:Key="/Default/CodeInspection/ExcludedFiles/FilesAndFoldersToSkip2/=7020124F_002D9FFC_002D4AC3_002D8F3D_002DAAB8E0240759_002Ff_003AControllerEndpointRouteBuilderExtensions_002Ecs_002Fl_003A_002E_002E_003F_002E_002E_003F_002Econfig_003FJetBrains_003FRider2024_002E2_003Fresharper_002Dhost_003FDecompilerCache_003Fdecompiler_003F16be2ef925864f19b035ef01a52102df1de600_003Fca_003Fbb02d061_003FControllerEndpointRouteBuilderExtensions_002Ecs/@EntryIndexedValue">ForceIncluded</s:String>
 	<s:String x:Key="/Default/CodeInspection/ExcludedFiles/FilesAndFoldersToSkip2/=7020124F_002D9FFC_002D4AC3_002D8F3D_002DAAB8E0240759_002Ff_003AMath_002Ecs_002Fl_003A_002E_002E_003F_002E_002E_003F_002Econfig_003FJetBrains_003FRider2024_002E2_003Fresharper_002Dhost_003FSourcesCache_003F57a1f82f884de2785cf31f799c2f1a6b36437f82afdb52feb11e5e580572c_003FMath_002Ecs/@EntryIndexedValue">ForceIncluded</s:String>
 	<s:String x:Key="/Default/CodeInspection/ExcludedFiles/FilesAndFoldersToSkip2/=7020124F_002D9FFC_002D4AC3_002D8F3D_002DAAB8E0240759_002Ff_003ANullable_002Ecs_002Fl_003A_002E_002E_003F_002E_002E_003F_002Econfig_003FJetBrains_003FRider2024_002E2_003Fresharper_002Dhost_003FSourcesCache_003F6728f66657329080f0f419df519283a455cdca7d2617a05b18553b02da52fa_003FNullable_002Ecs/@EntryIndexedValue">ForceIncluded</s:String>
+	<s:String x:Key="/Default/Environment/UnitTesting/UnitTestSessionStore/Sessions/=b23fba1c_002D9926_002D4bed_002Db427_002De7b5f9e27ea9/@EntryIndexedValue">&lt;SessionState ContinuousTestingMode="0" IsActive="True" Name="MakeMoveTests" xmlns="urn:schemas-jetbrains-com:jetbrains-ut-session"&gt;
+  &lt;TestAncestor&gt;
+    &lt;TestId&gt;NUnit3x::39EE9B25-B88E-46C8-8705-751BFCD44D4F::net8.0::Game.Tests.MakeMoveTests&lt;/TestId&gt;
+  &lt;/TestAncestor&gt;
+&lt;/SessionState&gt;</s:String>
 	
 	<s:String x:Key="/Default/Environment/UnitTesting/UnitTestSessionStore/Sessions/=c50b434d_002Dafa1_002D4aa9_002Da470_002D1d6519162c1d/@EntryIndexedValue">&lt;SessionState ContinuousTestingMode="0" IsActive="True" Name="Constuctor_InitialMinutes_ShouldBeClampedCorrectly" xmlns="urn:schemas-jetbrains-com:jetbrains-ut-session"&gt;
   &lt;TestAncestor&gt;
@@ -16,5 +21,10 @@
     &lt;TestId&gt;NUnit3x::39EE9B25-B88E-46C8-8705-751BFCD44D4F::net8.0::Game.Tests.GameTimerTest&lt;/TestId&gt;
     &lt;TestId&gt;NUnit3x::39EE9B25-B88E-46C8-8705-751BFCD44D4F::net8.0::Game.Tests.IGame_Tests+IGameInterfaceTests&lt;/TestId&gt;
     &lt;TestId&gt;NUnit3x::39EE9B25-B88E-46C8-8705-751BFCD44D4F::net8.0::Game.Tests.GameConstuctorTests&lt;/TestId&gt;
+  &lt;/TestAncestor&gt;
+&lt;/SessionState&gt;</s:String>
+	<s:String x:Key="/Default/Environment/UnitTesting/UnitTestSessionStore/Sessions/=ecb97817_002Deb04_002D4a3d_002D97ce_002Dff052d4fd557/@EntryIndexedValue">&lt;SessionState ContinuousTestingMode="0" IsActive="True" Name="CheckMoveTest" xmlns="urn:schemas-jetbrains-com:jetbrains-ut-session"&gt;
+  &lt;TestAncestor&gt;
+    &lt;TestId&gt;NUnit3x::39EE9B25-B88E-46C8-8705-751BFCD44D4F::net8.0::Game.Tests.CheckMoveTest&lt;/TestId&gt;
   &lt;/TestAncestor&gt;
 &lt;/SessionState&gt;</s:String></wpf:ResourceDictionary>

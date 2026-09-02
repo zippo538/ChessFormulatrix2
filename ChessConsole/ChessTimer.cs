@@ -12,7 +12,6 @@ public class ChessTimer
     public ChessTimer(TimeSpan initialTime)
     {
         RemainingTime = initialTime;
-        // Satu tick harus sama dengan satu detik permainan.
         _timer = new Timer(1000);
         _timer.AutoReset = true;
         _timer.Elapsed += (s, e) => OnTick();

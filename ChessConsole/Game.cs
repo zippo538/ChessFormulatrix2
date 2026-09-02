@@ -1,11 +1,10 @@
+using ChessConsole;
 using ChessConsole.Enums;
 using ChessConsole.Helper;
 using ChessConsole.Interface;
 using ChessConsole.Model;
-using System.Text;
-using ChessRules = ChessDotNet;
 
-namespace ChessConsole;
+namespace ChessConsole2;
 
 public class Game : IGame
 {
@@ -30,10 +29,7 @@ public class Game : IGame
     public event Action? OnGameOver;
     public GameOverResult GameResult;
 
-    // true jika Hitam dikendalikan oleh Negamax + Alpha-Beta internal.
-    // Validasi aturan dan simulasi posisi bot memakai ChessDotNet 1.0.0.
-    // false untuk player vs player (kedua sisi manusia). Default true agar
-    // pemakaian lama (mis. Program.cs versi single-player) tetap berjalan.
+
     public bool VsBot { get; private set; }
 
     public Game(
@@ -56,7 +52,6 @@ public class Game : IGame
 
     private void InitializeBoard()
     {
-        // White pieces (row 0-1)
         _board.Tiles[0 * 8 + 0].ChessPiece = new Piece(Color.White, PieceType.Rook);
         _board.Tiles[0 * 8 + 1].ChessPiece = new Piece(Color.White, PieceType.Knight);
         _board.Tiles[0 * 8 + 2].ChessPiece = new Piece(Color.White, PieceType.Bishop);
@@ -68,7 +63,6 @@ public class Game : IGame
         for (int i = 0; i < 8; i++)
             _board.Tiles[1 * 8 + i].ChessPiece = new Piece(Color.White, PieceType.Pawn);
 
-        // Black pieces (row 6-7)
         for (int i = 0; i < 8; i++)
             _board.Tiles[6 * 8 + i].ChessPiece = new Piece(Color.Black, PieceType.Pawn);
         _board.Tiles[7 * 8 + 0].ChessPiece = new Piece(Color.Black, PieceType.Rook);
@@ -114,7 +108,7 @@ public class Game : IGame
         GameResult = (player == WhitePlayer)
             ? new GameOverResult { Type = GameOverType.Resigned, Winner = Color.Black }
             : new GameOverResult { Type = GameOverType.Resigned, Winner = Color.White };
-        EndGame(GameResult);
+        EndGame();
     }
 
     
@@ -124,14 +118,18 @@ public class Game : IGame
         if (CheckTimeStatus().IsExpired)
             return false;
 
+        if (!IsInsideBoard(move.From) || !IsInsideBoard(move.To))
+            return false;
+
+        
+        var legalMoves = GetLegalMoves(move.From);
+
         if (_selectedPiece == null ||
             _availableMoves == null ||
-            !IsInsideBoard(move.From) ||
-            !IsInsideBoard(move.To) ||
             move.From.Row != _selectedPostition.Row ||
             move.From.Column != _selectedPostition.Column ||
             _selectedPiece.PieceColor != CurrentPlayer.PlayerColor ||
-            !_availableMoves.Any(position =>
+            !legalMoves.Any(position =>
                 position.Row == move.To.Row &&
                 position.Column == move.To.Column)
             )
@@ -202,8 +200,7 @@ public class Game : IGame
 
     private void SwitchTurn()
     {
-        // Catat waktu pemain aktif sebelum mengganti giliran. Jika ternyata
-        // sudah habis, permainan diakhiri dan giliran tidak dipindahkan.
+        
         var timeStatus = CheckTimeStatus();
         if (timeStatus.IsExpired) return;
 
@@ -216,7 +213,7 @@ public class Game : IGame
         }
     }
 
-    void EndGame(GameOverResult result)
+    void EndGame()
     {
         lock (_clockSync)
         {
@@ -229,7 +226,7 @@ public class Game : IGame
 
     private void UpdateActiveClockLocked(DateTimeOffset now)
     {
-        if (!_clockEnabled || !_clockRunning || CurrentPlayer == null) return;
+        if (!_clockEnabled || !_clockRunning) return;
 
         var elapsed = now - _turnStartedAt;
         if (elapsed <= TimeSpan.Zero) return;
@@ -244,7 +241,7 @@ public class Game : IGame
 
     private void DeclareTimeout(Color timedOutColor)
     {
-        bool shouldEndGame = false;
+        bool shouldEndGame;
         lock (_clockSync)
         {
             if (GameResult.Type != GameOverType.None) return;
@@ -263,13 +260,10 @@ public class Game : IGame
             shouldEndGame = true;
         }
 
-        if (shouldEndGame) EndGame(GameResult);
+        if (shouldEndGame) EndGame();
     }
 
-    /// <summary>
-    /// Menghitung sisa waktu berdasarkan jam UTC server dan sekaligus
-    /// menetapkan hasil timeout bila waktu pemain aktif sudah habis.
-    /// </summary>
+    
     public (TimeSpan WhiteRemaining, TimeSpan BlackRemaining, bool IsExpired, Color? TimedOutColor)
         CheckTimeStatus()
     {
@@ -303,7 +297,7 @@ public class Game : IGame
         }
     }
 
-    void CheckMoveResult()
+    public void CheckMoveResult()
     {
         var opponent = (CurrentPlayer == WhitePlayer) ? BlackPlayer! : WhitePlayer!;
         var opponentColor = opponent.PlayerColor;
@@ -317,13 +311,13 @@ public class Game : IGame
                     Type = GameOverType.Checkmate,
                     Winner = CurrentPlayer.PlayerColor
                 };
-                EndGame(GameResult);
+                EndGame();
             }
         }
         else if (GetAllLegalMoves(opponentColor).Count == 0)
         {
             GameResult = new GameOverResult { Type = GameOverType.Stalemate };
-            EndGame(GameResult);
+            EndGame();
         }
     }
 
@@ -347,14 +341,14 @@ public class Game : IGame
                 var rook = _board.Tiles[move.From.Row * 8 + 7].ChessPiece;
                 _board.Tiles[move.From.Row * 8 + 5].ChessPiece = rook;
                 _board.Tiles[move.From.Row * 8 + 7].ChessPiece = null;
-                rook!.Hasmove = true;
+                if (rook != null) rook.Hasmove = true;
             }
             else
             {
                 var rook = _board.Tiles[move.From.Row * 8 + 0].ChessPiece;
                 _board.Tiles[move.From.Row * 8 + 3].ChessPiece = rook;
                 _board.Tiles[move.From.Row * 8 + 0].ChessPiece = null;
-                rook!.Hasmove = true;
+                if (rook != null) rook.Hasmove = true;
             }
         }
     }
@@ -364,13 +358,17 @@ public class Game : IGame
         if (_selectedPiece?.Type != PieceType.Pawn) return;
         if (move.To.Row == 0 || move.To.Row == 7)
         {
-            var promotionType = move.PromotionType == PieceType.None
-                ? PieceType.Queen
-                : move.PromotionType;
+            var promotionType = NormalizePromotionType(move.PromotionType);
             var promotedPiece = new Piece(_selectedPiece.PieceColor, promotionType);
+            promotedPiece.Hasmove = true;
             _board.Tiles[move.To.Row * 8 + move.To.Column].ChessPiece = promotedPiece;
         }
     }
+
+    private static PieceType NormalizePromotionType(PieceType promotionType) =>
+        promotionType is PieceType.Queen or PieceType.Rook or PieceType.Bishop or PieceType.Knight
+            ? promotionType
+            : PieceType.Queen;
 
     void AddSlidingMoves(Piece piece, Postition position, List<Postition> moves)
     {
@@ -466,12 +464,16 @@ public class Game : IGame
         var piece = _board.Tiles[from.Row * 8 + from.Column].ChessPiece;
         if (piece == null || piece.PieceColor != attackerColor) return false;
 
+        if (piece.Type == PieceType.Pawn)
+        {
+            int direction = attackerColor == Color.White ? 1 : -1;
+            return to.Row == from.Row + direction &&
+                   Math.Abs(to.Column - from.Column) == 1;
+        }
+
         var moves = new List<Postition>();
         switch (piece.Type)
         {
-            case PieceType.Pawn:
-                AddPawnMoves(piece, from, moves);
-                break;
             case PieceType.Rook:
             case PieceType.Bishop:
             case PieceType.Queen:
@@ -483,95 +485,112 @@ public class Game : IGame
                 break;
         }
 
-        return moves.Contains(to);
+        return moves.Any(move => move.Row == to.Row && move.Column == to.Column);
     }
     // suggestion move piece
     public Move? GetSuggestedMoveForPiece(Postition piecePosition)
     {
-    var tile = _board.Tiles[piecePosition.Row * 8 + piecePosition.Column];
-    if (tile.ChessPiece == null || tile.ChessPiece.PieceColor != CurrentPlayer.PlayerColor)
-    {
-        return null;
-    }
+        if (!IsInsideBoard(piecePosition)) return null;
 
-    // Dapatkan semua langkah legal untuk bidak ini
-    List<Postition>? legalMoves = GetLegalMoves(piecePosition);
-    if (legalMoves == null || legalMoves.Count == 0) return null;
+        var tile = _board.Tiles[piecePosition.Row * 8 + piecePosition.Column];
+        if (tile.ChessPiece == null || tile.ChessPiece.PieceColor != CurrentPlayer.PlayerColor)
+            return null;
 
-    Move? bestMove = null;
-    
-    // Inisialisasi skor terburuk (sangat rendah untuk Putih, sangat tinggi untuk Hitam)
-    int bestScore = (CurrentPlayer.PlayerColor == Color.White) ? int.MinValue : int.MaxValue;
+        var legalMoves = GetLegalMoves(piecePosition);
+        if (legalMoves.Count == 0) return null;
 
-    foreach (var targetPosition in legalMoves)
-    {
-        // 1. Simpan referensi papan asli[cite: 25]
-        Board originalBoard = _board;
+        Move? bestMove = null;
+        int bestScore = CurrentPlayer.PlayerColor == Color.White ? int.MinValue : int.MaxValue;
 
-        // 2. Gunakan Deep Clone untuk simulasi[cite: 25]
-        _board = BoardHelper.Copy(originalBoard);
-
-        // 3. Eksekusi simulasi langkah
-        var movingPiece = _board.Tiles[piecePosition.Row * 8 + piecePosition.Column].ChessPiece;
-        _board.Tiles[targetPosition.Row * 8 + targetPosition.Column].ChessPiece = movingPiece;
-        _board.Tiles[piecePosition.Row * 8 + piecePosition.Column].ChessPiece = null;
-
-        // 4. Evaluasi hasil papan setelah langkah ini
-        int currentScore = EvaluateBoard(_board);
-
-        // 5. Kembalikan referensi ke papan asli[cite: 25]
-        _board = originalBoard;
-
-        // 6. Tentukan apakah ini langkah terbaik
-        if (CurrentPlayer.PlayerColor == Color.White)
+        foreach (var targetPosition in legalMoves)
         {
-            if (currentScore > bestScore)
+            var candidate = new Move
             {
-                bestScore = currentScore;
-                bestMove = new Move { From = piecePosition, To = targetPosition, Type = MoveType.Normal };
-            }
-        }
-        else // Hitam mencari skor terendah/paling negatif
-        {
-            if (currentScore < bestScore)
-            {
-                bestScore = currentScore;
-                bestMove = new Move { From = piecePosition, To = targetPosition, Type = MoveType.Normal };
-            }
-        }
-    }
+                From = piecePosition,
+                To = targetPosition,
+                Type = MoveType.Normal,
+                PromotionType = PieceType.Queen
+            };
 
-    return bestMove;
-}
+            Board originalBoard = _board;
+            int currentScore;
+            try
+            {
+                _board = BoardHelper.Copy(originalBoard);
+                ApplyMoveForSimulation(candidate);
+                currentScore = EvaluateBoard(_board);
+            }
+            finally
+            {
+                _board = originalBoard;
+            }
+
+            bool isBetter = CurrentPlayer.PlayerColor == Color.White
+                ? currentScore > bestScore
+                : currentScore < bestScore;
+            if (!isBetter) continue;
+
+            bestScore = currentScore;
+            bestMove = candidate;
+        }
+
+        return bestMove;
+    }
 
     bool IsKingInCheck(Color kingColor)
     {
-        var rulesGame = CreateRulesGame(kingColor);
-        return rulesGame.IsInCheck(ToRulesPlayer(kingColor));
+        var kingPosition = GetKingPosition(kingColor);
+        return !IsInsideBoard(kingPosition) || IsSquareAttacked(kingPosition, kingColor);
     }
-    
-    // Legal Moves
-    List<Postition>? GetLegalMoves(Postition position)
+
+    private List<Postition> GetPseudoLegalMoves(Postition position, bool includeSpecialMoves = true)
     {
+        var moves = new List<Postition>();
+        if (!IsInsideBoard(position)) return moves;
+
+        var piece = _board.Tiles[position.Row * 8 + position.Column].ChessPiece;
+        if (piece == null) return moves;
+
+        switch (piece.Type)
+        {
+            case PieceType.Pawn:
+                AddPawnMoves(piece, position, moves);
+                if (includeSpecialMoves) moves.AddRange(GetEnPassantMoves(position));
+                break;
+            case PieceType.Rook:
+            case PieceType.Bishop:
+            case PieceType.Queen:
+                AddSlidingMoves(piece, position, moves);
+                break;
+            case PieceType.Knight:
+                AddFixedMoves(piece, position, moves);
+                break;
+            case PieceType.King:
+                AddFixedMoves(piece, position, moves);
+                if (includeSpecialMoves) moves.AddRange(GetCastleMoves(position, piece));
+                break;
+        }
+
+        return moves;
+    }
+
+    
+    List<Postition> GetLegalMoves(Postition position)
+    {
+        if (!IsInsideBoard(position)) return new List<Postition>();
+
         var piece = _board.Tiles[position.Row * 8 + position.Column].ChessPiece;
         if (piece == null) return new List<Postition>();
 
-        // ChessDotNet menjadi sumber aturan legal (termasuk check, castling,
-        // en passant, dan promosi). FEN dibangun dari state papan lokal agar
-        // API/DTO lama tidak perlu diubah.
-        var rulesGame = CreateRulesGame(piece.PieceColor);
-        var rulesPosition = new ChessRules.Position(
-            (ChessRules.File)position.Column,
-            position.Row + 1);
-
-        return rulesGame
-            .GetValidMoves(rulesPosition)
-            .Select(move => new Postition
+        return GetPseudoLegalMoves(position)
+            .Where(target =>
             {
-                Row = move.NewPosition.Rank - 1,
-                Column = (int)move.NewPosition.File
+                var targetPiece = _board.Tiles[target.Row * 8 + target.Column].ChessPiece;
+                return targetPiece?.Type != PieceType.King &&
+                       IsMoveLegal(position, target, piece.PieceColor);
             })
-            .Distinct()
+            .GroupBy(target => (target.Row, target.Column))
+            .Select(group => group.First())
             .ToList();
     }
 
@@ -583,64 +602,116 @@ public class Game : IGame
         {
             _board = BoardHelper.Copy(originalBoard);
 
-            var movingPiece =
-                _board.Tiles[from.Row * 8 + from.Column].ChessPiece;
-
-            _board.Tiles[to.Row * 8 + to.Column].ChessPiece = movingPiece;
-            _board.Tiles[from.Row * 8 + from.Column].ChessPiece = null;
+            ApplyMoveForSimulation(new Move
+            {
+                From = from,
+                To = to,
+                Type = MoveType.Normal,
+                PromotionType = PieceType.Queen
+            });
 
             return !IsKingInCheck(movingColor);
         }
         finally
         {
-            // Wajib mengembalikan referensi papan utama.
             _board = originalBoard;
         }
     }
 
     List<Postition> GetAllLegalMoves(Color color)
     {
-        var rulesGame = CreateRulesGame(color);
-        return rulesGame
-            .GetValidMoves(ToRulesPlayer(color))
-            .Select(move => new Postition
-            {
-                Row = move.NewPosition.Rank - 1,
-                Column = (int)move.NewPosition.File
-            })
-            .ToList();
+        return GetAllLegalMoveObjects(color).Select(move => move.To).ToList();
     }
 
-    List<Postition> GetStandardMoves()
+    private List<Move> GetAllLegalMoveObjects(Color color)
     {
-        return _availableMoves ?? new List<Postition>();
-    }
-
-    List<Postition> GetPromotionMoves()
-    {
-        return new List<Postition>
+        var moves = new List<Move>();
+        for (int row = 0; row < 8; row++)
         {
-            new Postition { Row = 0, Column = 0 },
-            new Postition { Row = 0, Column = 0 }
-        };
+            for (int column = 0; column < 8; column++)
+            {
+                var from = new Postition { Row = row, Column = column };
+                var piece = _board.Tiles[row * 8 + column].ChessPiece;
+                if (piece == null || piece.PieceColor != color) continue;
+
+                foreach (var to in GetLegalMoves(from))
+                {
+                    moves.Add(new Move
+                    {
+                        From = from,
+                        To = to,
+                        Type = piece.Type == PieceType.King && Math.Abs(to.Column - column) == 2
+                            ? MoveType.Castling
+                            : piece.Type == PieceType.Pawn && to.Column != column &&
+                              _board.Tiles[to.Row * 8 + to.Column].ChessPiece == null
+                                ? MoveType.EnPassent
+                                : MoveType.Normal,
+                        PromotionType = piece.Type == PieceType.Pawn && (to.Row == 0 || to.Row == 7)
+                            ? PieceType.Queen
+                            : PieceType.None
+                    });
+                }
+            }
+        }
+        return moves;
+    }
+
+    private static Color OppositeColor(Color color) =>
+        color == Color.White ? Color.Black : Color.White;
+
+    private void ApplyMoveForSimulation(Move move)
+    {
+        var fromTile = _board.Tiles[move.From.Row * 8 + move.From.Column];
+        var toTile = _board.Tiles[move.To.Row * 8 + move.To.Column];
+        var piece = fromTile.ChessPiece;
+        if (piece == null) return;
+
+        bool isEnPassant = piece.Type == PieceType.Pawn &&
+                           move.From.Column != move.To.Column &&
+                           toTile.ChessPiece == null;
+        if (isEnPassant)
+            _board.Tiles[move.From.Row * 8 + move.To.Column].ChessPiece = null;
+
+        bool isCastling = piece.Type == PieceType.King &&
+                          Math.Abs(move.To.Column - move.From.Column) == 2;
+        if (isCastling)
+        {
+            int rookFromColumn = move.To.Column > move.From.Column ? 7 : 0;
+            int rookToColumn = move.To.Column > move.From.Column ? 5 : 3;
+            var rook = _board.Tiles[move.From.Row * 8 + rookFromColumn].ChessPiece;
+            _board.Tiles[move.From.Row * 8 + rookToColumn].ChessPiece = rook;
+            _board.Tiles[move.From.Row * 8 + rookFromColumn].ChessPiece = null;
+            if (rook != null) rook.Hasmove = true;
+        }
+
+        toTile.ChessPiece = piece;
+        fromTile.ChessPiece = null;
+        piece.Hasmove = true;
+
+        if (piece.Type == PieceType.Pawn && (move.To.Row == 0 || move.To.Row == 7))
+        {
+            var promotedPiece = new Piece(piece.PieceColor, NormalizePromotionType(move.PromotionType));
+            promotedPiece.Hasmove = true;
+            toTile.ChessPiece = promotedPiece;
+        }
     }
 
     List<Postition> GetCastleMoves(Postition kingPos, Piece king)
     {
         var moves = new List<Postition>();
-        if (king.Hasmove || IsKingInCheck(king.PieceColor)) return moves;
+        int homeRow = king.PieceColor == Color.White ? 0 : 7;
+        if (king.Hasmove || kingPos.Row != homeRow || kingPos.Column != 4 ||
+            IsKingInCheck(king.PieceColor)) return moves;
         
         
         int row = kingPos.Row;
-        // KINGISDE CASTLING 
         var kingSideRook = _board.Tiles[row * 8 + 7].ChessPiece;
-        if (kingSideRook != null && kingSideRook.Type == PieceType.Rook && !kingSideRook.Hasmove)
+        if (kingSideRook != null && kingSideRook.Type == PieceType.Rook &&
+            kingSideRook.PieceColor == king.PieceColor && !kingSideRook.Hasmove)
         {
-            // Aturan FIDE 3: Jalur (kolom f/5 dan g/6) harus KOSONG
             if (_board.Tiles[row * 8 + 5].ChessPiece == null &&
                 _board.Tiles[row * 8 + 6].ChessPiece == null)
             {
-                // Aturan FIDE 4 & 5: Petak yang dilewati (f) dan dituju (g) TIDAK diserang lawan
                 if (!IsSquareAttacked(new Postition { Row = row, Column = 5 }, king.PieceColor) &&
                     !IsSquareAttacked(new Postition { Row = row, Column = 6 }, king.PieceColor))
                 {
@@ -648,17 +719,14 @@ public class Game : IGame
                 }
             }
         }
-        // QUEENSIDE CASTLING
         var queenSideRook = _board.Tiles[row * 8 + 0].ChessPiece;
-        if (queenSideRook != null && queenSideRook.Type == PieceType.Rook && !queenSideRook.Hasmove)
+        if (queenSideRook != null && queenSideRook.Type == PieceType.Rook &&
+            queenSideRook.PieceColor == king.PieceColor && !queenSideRook.Hasmove)
         {
-            // Aturan FIDE 3: Jalur (kolom d/3, c/2, dan b/1) harus KOSONG
             if (_board.Tiles[row * 8 + 1].ChessPiece == null &&
                 _board.Tiles[row * 8 + 2].ChessPiece == null &&
                 _board.Tiles[row * 8 + 3].ChessPiece == null)
             {
-                // Aturan FIDE 4 & 5: Petak dilewati (d/3) dan dituju (c/2) TIDAK diserang.
-                // Sesuai aturan FIDE, petak b (kolom 1) TIDAK PERLU dicek serangannya karena Raja tidak melewatinya.
                 if (!IsSquareAttacked(new Postition { Row = row, Column = 2 }, king.PieceColor) &&
                     !IsSquareAttacked(new Postition { Row = row, Column = 3 }, king.PieceColor))
                 {
@@ -681,7 +749,6 @@ public class Game : IGame
                 {
                     if (piece.Type == PieceType.Pawn)
                     {
-                        // Pion menyerang secara diagonal 1 petak ke depan
                         int dir = (attackerColor == Color.White) ? 1 : -1;
                         if (r + dir == targetPos.Row && (c - 1 == targetPos.Column || c + 1 == targetPos.Column))
                         {
@@ -690,7 +757,6 @@ public class Game : IGame
                     }
                     else
                     {
-                        // Untuk bidak lain, gunakan logika CanAttack standar
                         if (CanAttack(new Postition { Row = r, Column = c }, targetPos, attackerColor))
                         {
                             return true;
@@ -710,29 +776,29 @@ public class Game : IGame
         var pawn = _board.Tiles[pawnPos.Row * 8 + pawnPos.Column].ChessPiece;
         if (pawn == null || pawn.Type != PieceType.Pawn) return moves;
 
-        //evaluate last move lawan
+        int requiredPawnRow = pawn.PieceColor == Color.White ? 4 : 3;
+        if (pawnPos.Row != requiredPawnRow) return moves;
+
         int lastMoveRowDiff = Math.Abs(_lastMove.To.Row - _lastMove.From.Row);
 
         if (lastMoveRowDiff == 2)
         {
             var lastMovedPiece = _board.Tiles[_lastMove.To.Row * 8 + _lastMove.To.Column].ChessPiece;
 
-            // Pastikan bidak yang baru saja bergerak adalah Pion musuh
             if (lastMovedPiece != null &&
                 lastMovedPiece.Type == PieceType.Pawn &&
-                lastMovedPiece.PieceColor != pawn.PieceColor)
+                lastMovedPiece.PieceColor != pawn.PieceColor &&
+                _lastMove.From.Column == _lastMove.To.Column &&
+                _lastMove.From.Row == (lastMovedPiece.PieceColor == Color.White ? 1 : 6))
             {
-                // 3. Syarat Posisi: Pion kita harus berada di baris yang sama dengan pion musuh, 
-                // dan bersebelahan (selisih kolom = 1)
                 if (_lastMove.To.Row == pawnPos.Row &&
                     Math.Abs(_lastMove.To.Column - pawnPos.Column) == 1)
                 {
-                    // Hitung baris tangkapan (maju 1 petak secara diagonal ke belakang pion musuh)
                     int captureRow = pawn.PieceColor == Color.White ? pawnPos.Row + 1 : pawnPos.Row - 1;
                     int captureCol = _lastMove.To.Column;
 
-                    // Pastikan target berada di dalam papan
-                    if (captureRow >= 0 && captureRow < 8 && captureCol >= 0 && captureCol < 8)
+                    if (captureRow >= 0 && captureRow < 8 && captureCol >= 0 && captureCol < 8 &&
+                        _board.Tiles[captureRow * 8 + captureCol].ChessPiece == null)
                     {
                         moves.Add(new Postition { Row = captureRow, Column = captureCol });
                     }
@@ -795,7 +861,7 @@ public class Game : IGame
     // move history
     public IReadOnlyList<MoveHistory> GetMoveHistory() => _moveHistory.AsReadOnly();
     
-    public List<Postition>? GetAvailableMovesForSelectedPiece()
+    public List<Postition> GetAvailableMovesForSelectedPiece()
     {
         return _availableMoves ?? new List<Postition>();
     }
@@ -807,7 +873,6 @@ public class Game : IGame
     
     public void SelectPieceAndGetSuggestion(Postition postition)
     {
-        // Memanggil fungsi pilihan bidak Anda yang sudah ada[cite: 25]
         TrySelectPiece(postition); 
     
         if (_selectedPiece != null)
@@ -848,183 +913,45 @@ public class Game : IGame
                     _ => 0
                 };
     
-                // Tambah skor jika Putih, kurangi jika Hitam
                 score += (piece.PieceColor == Color.White) ? pieceValue : -pieceValue;
             }
         }
         return score;
     }
 
-    // ==========================================
-    // BOT / AI ENGINE
-    // - ChessDotNet 1.0.0: aturan, langkah legal, dan simulasi posisi.
-    // - Negamax + Alpha-Beta: pemilihan langkah terbaik.
-    // Tidak membutuhkan executable atau engine eksternal.
-    // ==========================================
 
     public const int DefaultBotDepth = 3;
 
-    private static char PieceToFen(Piece piece)
+    private int Negamax(Color colorToMove, int depth, int alpha, int beta)
     {
-        char symbol = piece.Type switch
-        {
-            PieceType.Pawn => 'p',
-            PieceType.Knight => 'n',
-            PieceType.Bishop => 'b',
-            PieceType.Rook => 'r',
-            PieceType.Queen => 'q',
-            PieceType.King => 'k',
-            _ => throw new InvalidOperationException($"Tipe bidak {piece.Type} tidak dapat diubah menjadi FEN.")
-        };
-
-        return piece.PieceColor == Color.White
-            ? char.ToUpperInvariant(symbol)
-            : symbol;
-    }
-
-    private string GetCastlingFen()
-    {
-        var rights = new StringBuilder();
-
-        void AddRight(Color color, int row, int rookColumn, char symbol)
-        {
-            var king = _board.Tiles[row * 8 + 4].ChessPiece;
-            var rook = _board.Tiles[row * 8 + rookColumn].ChessPiece;
-            if (king != null && king.Type == PieceType.King && king.PieceColor == color && !king.Hasmove &&
-                rook != null && rook.Type == PieceType.Rook && rook.PieceColor == color && !rook.Hasmove)
-            {
-                rights.Append(symbol);
-            }
-        }
-
-        AddRight(Color.White, 0, 7, 'K');
-        AddRight(Color.White, 0, 0, 'Q');
-        AddRight(Color.Black, 7, 7, 'k');
-        AddRight(Color.Black, 7, 0, 'q');
-        return rights.Length == 0 ? "-" : rights.ToString();
-    }
-
-    private string GetEnPassantFen()
-    {
-        if (_lastMove.Equals(default(Move))) return "-";
-
-        var movedPiece = _board.Tiles[_lastMove.To.Row * 8 + _lastMove.To.Column].ChessPiece;
-        if (movedPiece == null || movedPiece.Type != PieceType.Pawn ||
-            Math.Abs(_lastMove.To.Row - _lastMove.From.Row) != 2)
-        {
-            return "-";
-        }
-
-        int targetRow = (_lastMove.From.Row + _lastMove.To.Row) / 2;
-        return ToAlgebraicSquare(new Postition { Row = targetRow, Column = _lastMove.To.Column });
-    }
-
-    private string ToFen(Color colorToMove)
-    {
-        var fen = new StringBuilder();
-        for (int row = 7; row >= 0; row--)
-        {
-            int empty = 0;
-            for (int column = 0; column < 8; column++)
-            {
-                var piece = _board.Tiles[row * 8 + column].ChessPiece;
-                if (piece == null)
-                {
-                    empty++;
-                    continue;
-                }
-
-                if (empty > 0)
-                {
-                    fen.Append(empty);
-                    empty = 0;
-                }
-                fen.Append(PieceToFen(piece));
-            }
-
-            if (empty > 0) fen.Append(empty);
-            if (row > 0) fen.Append('/');
-        }
-
-        int fullMoveNumber = (_moveHistory.Count / 2) + 1;
-        fen.Append(colorToMove == Color.White ? " w " : " b ");
-        fen.Append(GetCastlingFen());
-        fen.Append(' ');
-        fen.Append(GetEnPassantFen());
-        fen.Append(" 0 ");
-        fen.Append(fullMoveNumber);
-        return fen.ToString();
-    }
-
-    private static string ToAlgebraicSquare(Postition position) =>
-        $"{(char)('a' + position.Column)}{position.Row + 1}";
-
-    private ChessRules.ChessGame CreateRulesGame(Color colorToMove) =>
-        new ChessRules.ChessGame(ToFen(colorToMove));
-
-    private static ChessRules.Player ToRulesPlayer(Color color) =>
-        color == Color.White ? ChessRules.Player.White : ChessRules.Player.Black;
-
-    private static PieceType ToLocalPromotion(char? promotion)
-    {
-        if (!promotion.HasValue) return PieceType.None;
-        return char.ToUpperInvariant(promotion.Value) switch
-        {
-            'Q' => PieceType.Queen,
-            'R' => PieceType.Rook,
-            'B' => PieceType.Bishop,
-            'N' => PieceType.Knight,
-            _ => PieceType.None
-        };
-    }
-
-    private static int EvaluateRulesGame(ChessRules.ChessGame game)
-    {
-        int score = 0;
-        string boardFen = game.GetFen().Split(' ')[0];
-        foreach (char symbol in boardFen)
-        {
-            if (symbol == '/' || char.IsDigit(symbol)) continue;
-            int value = char.ToLowerInvariant(symbol) switch
-            {
-                'p' => 10,
-                'n' => 30,
-                'b' => 30,
-                'r' => 50,
-                'q' => 90,
-                'k' => 900,
-                _ => 0
-            };
-            score += char.IsUpper(symbol) ? value : -value;
-        }
-        return score;
-    }
-
-    private int Negamax(
-        ChessRules.ChessGame rulesGame,
-        int depth,
-        int alpha,
-        int beta)
-    {
-        var player = rulesGame.WhoseTurn;
-        var legalMoves = rulesGame.GetValidMoves(player).ToList();
+        var legalMoves = GetAllLegalMoveObjects(colorToMove);
         if (legalMoves.Count == 0)
-        {
-            return rulesGame.IsInCheck(player) ? -100000 - depth : 0;
-        }
+            return IsKingInCheck(colorToMove) ? -100000 - depth : 0;
 
         if (depth <= 0)
         {
-            int perspective = player == ChessRules.Player.White ? 1 : -1;
-            return perspective * EvaluateRulesGame(rulesGame);
+            int perspective = colorToMove == Color.White ? 1 : -1;
+            return perspective * EvaluateBoard(_board);
         }
 
         int best = int.MinValue;
-        foreach (var rulesMove in legalMoves)
+        foreach (var move in legalMoves)
         {
-            var child = new ChessRules.ChessGame(rulesGame.GetFen());
-            child.MakeMove(rulesMove, true);
-            int score = -Negamax(child, depth - 1, -beta, -alpha);
+            Board originalBoard = _board;
+            Move originalLastMove = _lastMove;
+            int score;
+            try
+            {
+                _board = BoardHelper.Copy(originalBoard);
+                ApplyMoveForSimulation(move);
+                _lastMove = move;
+                score = -Negamax(OppositeColor(colorToMove), depth - 1, -beta, -alpha);
+            }
+            finally
+            {
+                _board = originalBoard;
+                _lastMove = originalLastMove;
+            }
 
             if (score > best) best = score;
             if (best > alpha) alpha = best;
@@ -1034,62 +961,46 @@ public class Game : IGame
         return best;
     }
 
-    /// <summary>
-    /// Mencari langkah terbaik dengan Negamax + Alpha-Beta internal. Seluruh
-    /// langkah legal dan posisi anak dibuat oleh ChessDotNet 1.0.0.
-    /// </summary>
     public Move? GetBestMove(Color color, int depth = DefaultBotDepth)
     {
         depth = Math.Clamp(depth, 1, 4);
-        var rulesGame = CreateRulesGame(color);
-        var rulesPlayer = ToRulesPlayer(color);
-        var legalMoves = rulesGame.GetValidMoves(rulesPlayer).ToList();
+        var legalMoves = GetAllLegalMoveObjects(color);
         if (legalMoves.Count == 0) return null;
 
-        ChessRules.Move? bestRulesMove = null;
+        Move? bestMove = null;
         int bestScore = int.MinValue;
         int alpha = int.MinValue;
         int beta = int.MaxValue;
 
-        foreach (var rulesMove in legalMoves)
+        foreach (var move in legalMoves)
         {
-            var child = new ChessRules.ChessGame(rulesGame.GetFen());
-            child.MakeMove(rulesMove, true);
-            int score = -Negamax(child, depth - 1, -beta, -alpha);
+            Board originalBoard = _board;
+            Move originalLastMove = _lastMove;
+            int score;
+            try
+            {
+                _board = BoardHelper.Copy(originalBoard);
+                ApplyMoveForSimulation(move);
+                _lastMove = move;
+                score = -Negamax(OppositeColor(color), depth - 1, -beta, -alpha);
+            }
+            finally
+            {
+                _board = originalBoard;
+                _lastMove = originalLastMove;
+            }
 
-            if (bestRulesMove == null || score > bestScore)
+            if (!bestMove.HasValue || score > bestScore)
             {
                 bestScore = score;
-                bestRulesMove = rulesMove;
+                bestMove = move;
             }
             if (score > alpha) alpha = score;
         }
 
-        if (bestRulesMove == null) return null;
-        return new Move
-        {
-            From = new Postition
-            {
-                Row = bestRulesMove.OriginalPosition.Rank - 1,
-                Column = (int)bestRulesMove.OriginalPosition.File
-            },
-            To = new Postition
-            {
-                Row = bestRulesMove.NewPosition.Rank - 1,
-                Column = (int)bestRulesMove.NewPosition.File
-            },
-            Type = MoveType.Normal,
-            PromotionType = ToLocalPromotion(bestRulesMove.Promotion)
-        };
+        return bestMove;
     }
 
-    /// <summary>
-    /// Menjalankan giliran Bot untuk CurrentPlayer saat ini: mencari best
-    /// move via Negamax internal berbasis ChessDotNet, lalu mengeksekusinya lewat alur
-    /// TrySelectPiece -> MakeMove yang sudah ada (sehingga timer, history,
-    /// dan pengecekan checkmate/stalemate tetap konsisten dengan langkah
-    /// manusia biasa).
-    /// </summary>
     public Move? MakeBotMove(int depth = DefaultBotDepth)
     {
         if (CheckTimeStatus().IsExpired) return null;

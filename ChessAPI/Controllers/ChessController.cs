@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using AutoMapper;
 using ChessConsole;
 using ChessConsole.Enums;
+using ChessConsole2;
 
 namespace ChessAPI.Controller;
 [ApiController]
