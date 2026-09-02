@@ -4,7 +4,7 @@ using ChessConsole.Enums;
 namespace Game.Tests.GameEngine;
 
 [TestFixture]
-public class IPlayerTest
+public class PlayerTest
 {
     [Test]
     public void IPlayer_WhenCreated_ImplementsIPlayer()

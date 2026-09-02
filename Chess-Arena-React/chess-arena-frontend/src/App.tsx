@@ -57,7 +57,6 @@ function loadStoredPalette(): BoardPalette {
     const value = localStorage.getItem('chess-arena-palette');
     if (value) return JSON.parse(value) as BoardPalette;
   } catch {
-    // A private browser context can block localStorage; the default remains usable.
   }
   return boardPalettes[0];
 }
@@ -97,6 +96,7 @@ export default function App() {
 
   const phaseRef = useRef<GamePhase>(phase);
   const clocksRef = useRef({ white: whiteMs, black: blackMs });
+  const timeoutSyncStartedRef = useRef(false);
 
   useEffect(() => {
     phaseRef.current = phase;
@@ -133,8 +133,8 @@ export default function App() {
   );
 
   const syncTimeStatus = useCallback(
-      async (id: string) => {
-        const status = await chessApi.getTimeStatus(id);
+      async (id: string, signal?: AbortSignal) => {
+        const status = await chessApi.getTimeStatus(id, signal);
         applyTimeStatus(status);
         return status;
       },
@@ -145,12 +145,14 @@ export default function App() {
     try {
       localStorage.setItem('chess-arena-palette', JSON.stringify(palette));
     } catch {
-      // The selected colors still work for this session.
     }
   }, [palette]);
 
   useEffect(() => {
     if (phase !== 'playing' || mode === 'practice') return;
+
+    timeoutSyncStartedRef.current = false;
+    const controller = new AbortController();
     let previous = Date.now();
     const timer = window.setInterval(() => {
       const now = Date.now();
@@ -162,41 +164,31 @@ export default function App() {
       if (key === 'white') setWhiteMs(next);
       else setBlackMs(next);
 
-    }, 200);
-    return () => window.clearInterval(timer);
-  }, [phase, currentTurn, mode]);
+      if (next === 0 && gameId && !timeoutSyncStartedRef.current) {
+        timeoutSyncStartedRef.current = true;
+        void (async () => {
+          try {
+            const status = await syncTimeStatus(gameId, controller.signal);
+            if (controller.signal.aborted) return;
 
-  useEffect(() => {
-    if (!gameId || phase !== 'playing' || mode === 'practice') return;
-
-    let cancelled = false;
-    let inFlight = false;
-    const synchronize = async () => {
-      if (inFlight) return;
-      inFlight = true;
-      try {
-        const status = await chessApi.getTimeStatus(gameId);
-        if (!cancelled) {
-          applyTimeStatus(status);
-          setApiOffline(false);
-        }
-      } catch {
-        if (!cancelled) {
-          setApiOffline(true);
-          setNotice('Gagal menyinkronkan waktu dengan server.');
-        }
-      } finally {
-        inFlight = false;
+            setApiOffline(false);
+            if (!status.gameOver) {
+              timeoutSyncStartedRef.current = false;
+            }
+          } catch (error) {
+            if (controller.signal.aborted) return;
+            setApiOffline(true);
+            setNotice(`Gagal mengonfirmasi waktu habis: ${getMessage(error)}`);
+          }
+        })();
       }
-    };
+    }, 200);
 
-    void synchronize();
-    const polling = window.setInterval(() => void synchronize(), 1000);
     return () => {
-      cancelled = true;
-      window.clearInterval(polling);
+      window.clearInterval(timer);
+      controller.abort();
     };
-  }, [applyTimeStatus, gameId, mode, phase]);
+  }, [currentTurn, gameId, mode, phase, syncTimeStatus]);
 
   const historyRows = useMemo(() => {
     const rows: Array<{ number: number; white?: HistoryEntry; black?: HistoryEntry }> = [];
@@ -251,12 +243,6 @@ export default function App() {
     return nextBoard;
   }
 
-  // Catatan: dulu ada logika AI client-side (findAiMove/playAiTurn) yang
-  // memilih langkah Hitam dengan memanggil /suggestion berulang kali per
-  // bidak. Itu sudah tidak diperlukan lagi: untuk mode 'bot', backend kini
-  // otomatis membalas dengan engine Minimax + Alpha-Beta miliknya sendiri
-  // di dalam satu request POST /moves (lihat ChessController.MakeMove &
-  // Game.MakeBotMove), dan mengirim balik langkah bot lewat `botMove`.
 
   async function playMove(fromSquare: string, toSquare: string, promotionType?: PieceName) {
     if (!gameId || busy || phase !== 'playing') return;

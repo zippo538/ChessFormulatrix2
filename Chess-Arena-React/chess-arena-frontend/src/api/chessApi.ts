@@ -71,9 +71,7 @@ function normalizeMoveResponse(payload: unknown): MoveResponse {
 
 export type CreateGameOptions = {
   whiteName: string;
-  // Nama pemain Hitam untuk mode player-vs-player. Diabaikan backend saat vsBot true.
   blackName?: string;
-  // true = lawan AI Bot (default), false = player vs player lokal.
   vsBot: boolean;
   minutes: number;
   clockEnabled: boolean;
@@ -127,9 +125,6 @@ export const chessApi = {
       from: { row: move.from.row, column: move.from.column },
       to: { row: move.to.row, column: move.to.column },
     };
-    // Hanya disertakan saat memang ada pilihan promosi (pion mencapai ujung
-    // papan). Untuk langkah biasa, field ini tidak dikirim sama sekali --
-    // biar backend yang menentukan default Queen HANYA jika promosi terjadi.
     if (move.promotionType) {
       body.promotionType = move.promotionType;
     }
@@ -154,8 +149,8 @@ export const chessApi = {
     return normalizeMoveResponse(data);
   },
 
-  async getTimeStatus(gameId: string): Promise<TimeStatusResponse> {
-    const data = await request(`/${gameId}/time-status`);
+  async getTimeStatus(gameId: string, signal?: AbortSignal): Promise<TimeStatusResponse> {
+    const data = await request(`/${gameId}/time-status`, { signal });
     return {
       whiteRemainingSeconds: Math.max(
           0,

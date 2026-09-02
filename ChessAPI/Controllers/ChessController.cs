@@ -12,7 +12,6 @@ namespace ChessAPI.Controllers;
 [Route("api/[controller]")]
 public class ChessController : ControllerBase
 {
-    // Penyimpanan sesi game di memori (untuk production, gunakan Redis atau Database)
     private static readonly ConcurrentDictionary<string, Game> ActiveGames = new();
     
     private readonly IMapper _mapper;
@@ -36,11 +35,6 @@ public class ChessController : ControllerBase
         return false;
     }
 
-
-    // ==========================================
-    // 1. CREATE & GET GAME
-    // ==========================================
-
     [HttpPost]
     public IActionResult CreateGame([FromBody] CreateGameDTO request)
     {
@@ -48,16 +42,10 @@ public class ChessController : ControllerBase
         var gameLogger = ForGame(gameId);
         try
         {
-            // Nama Putih boleh kosong (mis. mode Latihan yang tidak menampilkan
-            // input nama sama sekali) -> fallback ke "Anda".
             var whiteName = string.IsNullOrWhiteSpace(request.WhiteName) ? "Anda" : request.WhiteName;
 
-            // Membuat instance game menggunakan model asli dari ChessConsole
             var whitePlayer = new Player(whiteName, Color.White);
 
-            // VsBot=true  -> Hitam dikendalikan bot Negamax internal.
-            // VsBot=false -> dipakai untuk PvP maupun Latihan (sandbox dua sisi).
-            //   Nama Hitam boleh kosong (mode Latihan tidak menampilkannya) -> fallback "Pemain Hitam".
             var blackName = request.VsBot
                 ? "AI Bot"
                 : (string.IsNullOrWhiteSpace(request.BlackName) ? "Pemain Hitam" : request.BlackName);
@@ -171,7 +159,6 @@ public class ChessController : ControllerBase
                 });
             }
 
-            // Validasi dan parsing PromotionType
             PieceType promotion = PieceType.None;
             if (!string.IsNullOrEmpty(moveDto.PromotionType) &&
                 !Enum.TryParse(moveDto.PromotionType, out promotion))
@@ -193,7 +180,6 @@ public class ChessController : ControllerBase
                 toPosition.Column,
                 promotion);
 
-            // WAJIB: SelectPiece dulu sebelum MakeMove sesuai dengan alur di Program.cs Anda
             if (!game.TrySelectPiece(fromPosition))
             {
                 gameLogger.Warning(
@@ -205,7 +191,6 @@ public class ChessController : ControllerBase
 
             var availableMoves = game.GetAvailableMovesForSelectedPiece();
 
-            // Memastikan tujuan legal
             if (!availableMoves.Exists(m =>
                     m.Row == toPosition.Row && m.Column == toPosition.Column))
             {
@@ -250,7 +235,6 @@ public class ChessController : ControllerBase
                     promotion);
             }
 
-            // Cek kondisi akhir permainan setelah move pemain
             if (game.GameResult.Type != GameOverType.None)
             {
                 gameLogger.Information(
@@ -265,9 +249,6 @@ public class ChessController : ControllerBase
                 });
             }
 
-            // Mode vs Bot: giliran Hitam otomatis dibalas oleh Negamax
-            // internal dengan validasi ChessDotNet di Game.cs.
-            // Mode PvP (VsBot = false): dilewati, giliran Hitam menunggu input pemain.
             object? botMoveInfo = null;
             if (game.VsBot && game.GetColorsPlayer() == Color.Black)
             {
@@ -326,9 +307,6 @@ public class ChessController : ControllerBase
         }
     }
 
-    // ==========================================
-    // 3. ENGINE SUGGESTION
-    // ==========================================
 
     [HttpGet("{gameId}/suggestion")]
     public ActionResult<MoveDTO> GetSuggestion(string gameId, [FromQuery] int row, [FromQuery] int col)
@@ -346,7 +324,6 @@ public class ChessController : ControllerBase
                 row,
                 col);
 
-            // Panggil TrySelectPiece dulu, baru GetSuggestedMoveForPiece
             if (game.TrySelectPiece(position))
             {
                 var suggestedMove = game.GetSuggestedMoveForPiece(position);
@@ -382,14 +359,6 @@ public class ChessController : ControllerBase
         }
     }
 
-    // ==========================================
-    // 4. BOT (AI) MOVE
-    // ==========================================
-
-    // Endpoint manual untuk memicu langkah Bot secara eksplisit.
-    // Berguna jika Anda ingin memisahkan "giliran pemain" dan "giliran bot"
-    // di sisi client (misal menampilkan animasi "Bot sedang berpikir...").
-    // Jika Anda memakai auto-reply di MakeMove di atas, endpoint ini opsional.
     [HttpPost("{gameId}/bot-move")]
     public IActionResult MakeBotMove(string gameId, [FromQuery] int depth = Game.DefaultBotDepth)
     {
@@ -426,7 +395,6 @@ public class ChessController : ControllerBase
             });
         }
 
-        // Batasi depth agar pencarian Negamax tidak membebani server.
         var safeDepth = Math.Clamp(depth, 1, 4);
         var botColor = game.CurrentPlayer.PlayerColor;
         gameLogger.Debug(
@@ -494,10 +462,6 @@ public class ChessController : ControllerBase
         }
     }
 
-    // ==========================================
-    // 5. TIME STATUS
-    // ==========================================
-
     [HttpGet("{gameId}/time-status")]
     public IActionResult GetTimeStatus(string gameId)
     {
@@ -527,10 +491,6 @@ public class ChessController : ControllerBase
                 : game.GameResult.Winner.ToString()
         });
     }
-
-    // ==========================================
-    // 6. GAME ACTIONS
-    // ==========================================
 
     [HttpPost("{gameId}/resign")]
     public IActionResult Resign(string gameId)

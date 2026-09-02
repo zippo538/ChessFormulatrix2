@@ -9,30 +9,24 @@ public class ChessProfile : Profile
 {
     public ChessProfile()
     {
-        // Konfigurasi Postition[cite: 18]
         CreateMap<Postition, PosititionDTO>()
             .ForMember(dest => dest.Row, opt => opt.MapFrom(src => src.Row))
             .ForMember(dest => dest.Column, opt => opt.MapFrom(src => src.Column));
 
-        // Konfigurasi Piece[cite: 16]
         CreateMap<Pieces, PieceDto>()
             .ForMember(dest => dest.PieceColor, opt => opt.MapFrom(src => src.PieceColor.ToString()))
             .ForMember(dest => dest.Type, opt => opt.MapFrom(src => src.Piece.ToString()))
             .ForMember(dest => dest.HasMoved, opt => opt.MapFrom(src => src.HasMoved));
 
-        // Konfigurasi Tile[cite: 12]
         CreateMap<Tile, TileDto>();
 
-        // Konfigurasi Board[cite: 15]
         CreateMap<Board, BoardDTO>();
 
-        // Konfigurasi Move[cite: 17]
         CreateMap<Move, MoveDTO>()
             .ForMember(dest => dest.PromotionType, opt => opt.MapFrom(src => 
                 src.PromotionType == PieceType.None ? null : src.PromotionType.ToString()))
             .ForMember(dest => dest.Type, opt => opt.MapFrom(src => src.Type.ToString()));
 
-        // Konfigurasi MoveHistory[cite: 13]
         CreateMap<MoveHistory, MoveHistoryDTO>()
             .ForMember(dest => dest.PieceType, opt => opt.MapFrom(src => src.PieceType.ToString()))
             .ForMember(dest => dest.PieceColor, opt => opt.MapFrom(src => src.PieceColor.ToString()))
@@ -48,7 +42,6 @@ public class ChessProfile : Profile
                 }
             });
 
-        // Konfigurasi Player[cite: 14]
         CreateMap<Player, PlayerDTO>()
             .ForMember(dest => dest.PlayerColor, opt => opt.MapFrom(src => src.PlayerColor.ToString()));
     }

@@ -690,6 +690,11 @@ public class Program
     }
     private static void ConfigureLogging()
     {
+        const string outputTemplate =
+            "[{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} {Level:u3}] " +
+            "[GameId: {GameId}] " +
+            "[{SourceContext}] " +
+            "{Message:lj}{NewLine}{Exception}";
         Log.Logger = new LoggerConfiguration()
             .MinimumLevel.Debug()
             .MinimumLevel.Override(
@@ -699,9 +704,12 @@ public class Program
             .Enrich.WithProperty(
                 "Application",
                 "ChessConsole")
+            .WriteTo.Console(
+                restrictedToMinimumLevel: LogEventLevel.Warning,
+                outputTemplate: outputTemplate)
             .WriteTo.File(
-                path: "logs/chess-.log",
-                restrictedToMinimumLevel: LogEventLevel.Debug,
+                path: "logs/chess-Console.log",
+                restrictedToMinimumLevel: LogEventLevel.Warning,
                 rollingInterval: RollingInterval.Day,
                 retainedFileCountLimit: 14,
                 rollOnFileSizeLimit: true,

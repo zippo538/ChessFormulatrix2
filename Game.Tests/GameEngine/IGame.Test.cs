@@ -8,20 +8,15 @@ using Moq;
 namespace Game.Tests.GameEngine;
 
 
-public class IGame_Tests
+public class GameTests
 {
     [TestFixture]
-    public class IGameInterfaceTests
+    public class GameInterfaceTests
     {
-        // Dummy implementation sederhana untuk mengecek default interface methods
         private class DummyGame : IGame
         {
-            // Tidak meng-override default implementation
         }
 
-        // ==========================================
-        // 1. TESTING DEFAULT INTERFACE IMPLEMENTATIONS
-        // ==========================================
 
         [Test]
         public void DefaultInterface_GetCurrentTurn_ShouldReturnWhite()
@@ -30,7 +25,7 @@ public class IGame_Tests
 
             Color currentTurn = game.GetCurrentTurn();
 
-            Assert.AreEqual(Color.White, currentTurn);
+            Assert.That(currentTurn, Is.EqualTo(Color.White));
         }
 
         [Test]
@@ -52,7 +47,7 @@ public class IGame_Tests
             List<Move> legalMoves = game.GetLegalMoves();
 
             Assert.IsNotNull(legalMoves);
-            Assert.AreEqual(0, legalMoves.Count);
+            Assert.That(legalMoves.Count, Is.EqualTo(0));
         }
 
         [Test]
@@ -63,8 +58,8 @@ public class IGame_Tests
             TimeSpan whiteTimer = game.GetWhiteTimer();
             TimeSpan blackTimer = game.GetBlackTimer();
 
-            Assert.AreEqual(TimeSpan.FromSeconds(1), whiteTimer);
-            Assert.AreEqual(TimeSpan.FromSeconds(1), blackTimer);
+            Assert.That(whiteTimer, Is.EqualTo(TimeSpan.FromSeconds(1)));
+            Assert.That(blackTimer, Is.EqualTo(TimeSpan.FromSeconds(1)));
         }
 
         [Test]
@@ -75,17 +70,13 @@ public class IGame_Tests
             GameOverResult result = game.Resign();
 
             Assert.IsNotNull(result);
-            Assert.AreEqual(GameOverType.None, result.Type);
+            Assert.That(result.Type, Is.EqualTo(GameOverType.None));
         }
 
-        // ==========================================
-        // 2. TESTING MOCKING CONTRACT (USING MCQ)
-        // ==========================================
 
         [Test]
         public void MockIGame_StartGameAndMakeMove_ShouldExecuteWithoutException()
         {
-            // Arrange
             var mockGame = new Mock<IGame>();
 
             var sampleMove = new Move
@@ -96,11 +87,9 @@ public class IGame_Tests
                 PromotionType = PieceType.None
             };
 
-            // Act
             mockGame.Object.StartGame();
             mockGame.Object.MakeMove(sampleMove);
 
-            // Assert: Memastikan bahwa metode void berhasil dipanggil persis 1 kali
             mockGame.Verify(g => g.StartGame(), Times.Once);
             mockGame.Verify(g => g.MakeMove(sampleMove), Times.Once);
         }
@@ -108,17 +97,15 @@ public class IGame_Tests
         [Test]
         public void MockIGame_OverriddenMethods_ShouldReturnCustomValues()
         {
-            // Arrange
             var mockGame = new Mock<IGame>();
 
             mockGame.Setup(g => g.GetCurrentTurn()).Returns(Color.Black);
             mockGame.Setup(g => g.GetWhiteTimer()).Returns(TimeSpan.FromMinutes(5));
             mockGame.Setup(g => g.GetMoveResult()).Returns(MoveResult.Checked);
 
-            // Act & Assert
-            Assert.AreEqual(Color.Black, mockGame.Object.GetCurrentTurn());
-            Assert.AreEqual(TimeSpan.FromMinutes(5), mockGame.Object.GetWhiteTimer());
-            Assert.AreEqual(MoveResult.Checked, mockGame.Object.GetMoveResult());
+            Assert.That(mockGame.Object.GetCurrentTurn(), Is.EqualTo(Color.Black));
+            Assert.That(mockGame.Object.GetWhiteTimer(), Is.EqualTo(TimeSpan.FromMinutes(5)));
+            Assert.That(mockGame.Object.GetMoveResult(), Is.EqualTo(MoveResult.Checked));
         }
     }
 }

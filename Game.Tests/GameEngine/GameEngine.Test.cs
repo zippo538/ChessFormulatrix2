@@ -19,15 +19,11 @@ public class GameEngineTest
         _game = new ChessConsole2.Game(_whitePlayer, _blackPlayer,vsBot:true);
         _game.StartGame();
     }
-        // ==========================================
-        // 1. INITIALIZE BOARD TESTS
-        // ==========================================
         [Test]
         public void Constructor_ShouldInitializeBoardWithCorrectPiecePositions()
         {
             var board = _game.GetCurrentBoard();
 
-            // Cek Bidak Perwira Putih (Row 0)
             Assert.That(board.Tiles[0 * 8 + 0].ChessPiece?.Piece, Is.EqualTo(PieceType.Rook));
             Assert.That(board.Tiles[0 * 8 + 1].ChessPiece?.Piece, Is.EqualTo(PieceType.Knight));
             Assert.That(board.Tiles[0 * 8 + 2].ChessPiece?.Piece, Is.EqualTo(PieceType.Bishop));
@@ -37,7 +33,6 @@ public class GameEngineTest
             Assert.That(board.Tiles[0 * 8 + 6].ChessPiece?.Piece, Is.EqualTo(PieceType.Knight));
             Assert.That(board.Tiles[0 * 8 + 7].ChessPiece?.Piece, Is.EqualTo(PieceType.Rook));
 
-            // Cek Pion Putih (Row 1) & Pion Hitam (Row 6)
             for (int col = 0; col < 8; col++)
             {
                 var whitePawn = board.Tiles[1 * 8 + col].ChessPiece;
@@ -51,7 +46,6 @@ public class GameEngineTest
                 Assert.That(blackPawn.PieceColor, Is.EqualTo(Color.Black));
             }
 
-            // Cek Bidak Perwira Hitam (Row 7)
             Assert.That(board.Tiles[7 * 8 + 0].ChessPiece?.Piece, Is.EqualTo(PieceType.Rook));
             Assert.That(board.Tiles[7 * 8 + 1].ChessPiece?.Piece, Is.EqualTo(PieceType.Knight));
             Assert.That(board.Tiles[7 * 8 + 2].ChessPiece?.Piece, Is.EqualTo(PieceType.Bishop));
@@ -61,7 +55,6 @@ public class GameEngineTest
             Assert.That(board.Tiles[7 * 8 + 6].ChessPiece?.Piece, Is.EqualTo(PieceType.Knight));
             Assert.That(board.Tiles[7 * 8 + 7].ChessPiece?.Piece, Is.EqualTo(PieceType.Rook));
 
-            // Cek Baris Tengah (Row 2 sampai 5) Wajib Kosong (Null)
             for (int row = 2; row <= 5; row++)
             {
                 for (int col = 0; col < 8; col++)
@@ -70,9 +63,6 @@ public class GameEngineTest
                 }
             }
         }
-        // ==========================================
-        // 2. START GAME TESTS
-        // ==========================================
         [Test]
         public void StartGame_ShouldSetCurrentPlayerToWhiteAndInitializeTimers()
         {
@@ -87,19 +77,13 @@ public class GameEngineTest
             var timeStatus = _game.CheckTimeStatus();
             Assert.IsFalse(timeStatus.IsExpired, "Waktu permainan baru mulai tidak boleh expired.");
         }
-        // ==========================================
-        // 3. RESIGN TESTS
-        // ==========================================
         [Test]
         public void Resign_WhitePlayerResigns_ShouldSetWinnerToBlack()
         {
-            // Arrange
             _game.StartGame();
 
-            // Act: Putih menyerah
             _game.Resign(_whitePlayer);
 
-            // Assert
             Assert.That(_game.GameResult.Type, Is.EqualTo(GameOverType.Resigned));
             Assert.That(_game.GameResult.Winner, Is.EqualTo(Color.Black), "Jika Putih menyerah, pemenang harus Hitam.");
         }
@@ -107,10 +91,8 @@ public class GameEngineTest
         [Test]
         public void Resign_BlackPlayerResigns_ShouldSetWinnerToWhite()
         {
-            // Arrange
             _game.StartGame();
 
-            // Act: Hitam menyerah
             _game.Resign(_blackPlayer);
 
             // Assert
@@ -121,15 +103,12 @@ public class GameEngineTest
         [Test]
         public void Resign_ShouldTriggerOnGameOverEvent()
         {
-            // Arrange
             _game.StartGame();
             bool eventTriggered = false;
             _game.OnGameOver += () => eventTriggered = true;
 
-            // Act
             _game.Resign(_whitePlayer);
 
-            // Assert
             Assert.IsTrue(eventTriggered, "Event OnGameOver harus dipanggil saat pemain menyerah.");
         }
     

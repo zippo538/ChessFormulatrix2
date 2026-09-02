@@ -28,14 +28,6 @@ public class CheckMoveTest
     [Test]
     public void CheckMoveResult_WhenOpponentIsCheckmated_SetsCheckmateResult()
     {
-        /*
-         * Posisi:
-         * Black King : h8
-         * White Queen: g7
-         * White King : f6
-         *
-         * Raja hitam sedang skak dan tidak memiliki langkah legal.
-         */
         PlacePiece(7, 7, Color.Black, PieceType.King);
         PlacePiece(6, 6, Color.White, PieceType.Queen);
         PlacePiece(5, 5, Color.White, PieceType.King);

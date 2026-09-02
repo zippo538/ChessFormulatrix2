@@ -7,6 +7,7 @@ using ChessAPI.Profiles;
 ConfigureLogging();
 try
 {
+    Log.Information("Chess API application started");
     var builder = WebApplication.CreateBuilder(args);
     builder.Services.AddSerilog();
 
@@ -76,20 +77,18 @@ void ConfigureLogging()
         .MinimumLevel.Debug()
         .MinimumLevel.Override(
             "Microsoft",
-            LogEventLevel.Information)
+            LogEventLevel.Warning)
         .Enrich.FromLogContext()
         .Enrich.WithProperty(
             "Application",
             "ChessAPI")
 
-        // Menampilkan log pada terminal
         .WriteTo.Console(
             restrictedToMinimumLevel: LogEventLevel.Debug,
             outputTemplate: outputTemplate)
 
-        // Tetap menyimpan log ke file
         .WriteTo.File(
-            path: "logs/chess-.log",
+            path: "logs/chess-API.log",
             restrictedToMinimumLevel: LogEventLevel.Debug,
             rollingInterval: RollingInterval.Day,
             retainedFileCountLimit: 14,
