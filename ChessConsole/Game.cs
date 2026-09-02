@@ -3,6 +3,8 @@ using ChessConsole.Enums;
 using ChessConsole.Helper;
 using ChessConsole.Interface;
 using ChessConsole.Model;
+using System.Diagnostics;
+using Serilog;
 
 namespace ChessConsole2;
 
@@ -14,7 +16,7 @@ public class Game : IGame
     public Player CurrentPlayer = null!;
     public ChessTimer WhiteTimer = null!;
     public ChessTimer BlackTimer = null!;
-    private Piece? _selectedPiece;
+    private Pieces? _selectedPiece;
     private Postition _selectedPostition;
     private List<Postition>? _availableMoves;
     private Move _lastMove;
@@ -26,6 +28,8 @@ public class Game : IGame
     private TimeSpan _blackRemaining;
     private DateTimeOffset _turnStartedAt;
     private bool _clockRunning;
+    private readonly ILogger _logger;
+    public string GameId { get; }
     public event Action? OnGameOver;
     public GameOverResult GameResult;
 
@@ -37,42 +41,66 @@ public class Game : IGame
         Player? blackPlayer,
         bool vsBot = true,
         int initialMinutes = 10,
-        bool clockEnabled = true)
+        bool clockEnabled = true,
+        ILogger? logger = null,
+        string? gameId = null)
     {
+        GameId = string.IsNullOrWhiteSpace(gameId)
+            ? Guid.NewGuid().ToString()
+            : gameId;
+
+        _logger = (logger ?? Log.Logger)
+            .ForContext<Game>()
+            .ForContext("GameId", GameId);
+
         WhitePlayer = whitePlayer;
         BlackPlayer = blackPlayer;
         VsBot = vsBot;
-        _initialPlayerTime = TimeSpan.FromMinutes(Math.Clamp(initialMinutes, 1, 180));
+
+        _initialPlayerTime = TimeSpan.FromMinutes(
+            Math.Clamp(initialMinutes, 1, 180));
+
         _clockEnabled = clockEnabled;
         _whiteRemaining = _initialPlayerTime;
         _blackRemaining = _initialPlayerTime;
+
         _board = new Board();
         InitializeBoard();
+
+        _logger.Debug(
+            "Chess game object created. WhitePlayer: {WhitePlayer}, " +
+            "BlackPlayer: {BlackPlayer}, VsBot: {VsBot}, " +
+            "InitialMinutes: {InitialMinutes}, ClockEnabled: {ClockEnabled}",
+            WhitePlayer?.Name,
+            BlackPlayer?.Name,
+            VsBot,
+            _initialPlayerTime.TotalMinutes,
+            _clockEnabled);
     }
 
     private void InitializeBoard()
     {
-        _board.Tiles[0 * 8 + 0].ChessPiece = new Piece(Color.White, PieceType.Rook);
-        _board.Tiles[0 * 8 + 1].ChessPiece = new Piece(Color.White, PieceType.Knight);
-        _board.Tiles[0 * 8 + 2].ChessPiece = new Piece(Color.White, PieceType.Bishop);
-        _board.Tiles[0 * 8 + 3].ChessPiece = new Piece(Color.White, PieceType.Queen);
-        _board.Tiles[0 * 8 + 4].ChessPiece = new Piece(Color.White, PieceType.King);
-        _board.Tiles[0 * 8 + 5].ChessPiece = new Piece(Color.White, PieceType.Bishop);
-        _board.Tiles[0 * 8 + 6].ChessPiece = new Piece(Color.White, PieceType.Knight);
-        _board.Tiles[0 * 8 + 7].ChessPiece = new Piece(Color.White, PieceType.Rook);
+        _board.Tiles[0 * 8 + 0].ChessPiece = new Pieces(Color.White, PieceType.Rook);
+        _board.Tiles[0 * 8 + 1].ChessPiece = new Pieces(Color.White, PieceType.Knight);
+        _board.Tiles[0 * 8 + 2].ChessPiece = new Pieces(Color.White, PieceType.Bishop);
+        _board.Tiles[0 * 8 + 3].ChessPiece = new Pieces(Color.White, PieceType.Queen);
+        _board.Tiles[0 * 8 + 4].ChessPiece = new Pieces(Color.White, PieceType.King);
+        _board.Tiles[0 * 8 + 5].ChessPiece = new Pieces(Color.White, PieceType.Bishop);
+        _board.Tiles[0 * 8 + 6].ChessPiece = new Pieces(Color.White, PieceType.Knight);
+        _board.Tiles[0 * 8 + 7].ChessPiece = new Pieces(Color.White, PieceType.Rook);
         for (int i = 0; i < 8; i++)
-            _board.Tiles[1 * 8 + i].ChessPiece = new Piece(Color.White, PieceType.Pawn);
+            _board.Tiles[1 * 8 + i].ChessPiece = new Pieces(Color.White, PieceType.Pawn);
 
         for (int i = 0; i < 8; i++)
-            _board.Tiles[6 * 8 + i].ChessPiece = new Piece(Color.Black, PieceType.Pawn);
-        _board.Tiles[7 * 8 + 0].ChessPiece = new Piece(Color.Black, PieceType.Rook);
-        _board.Tiles[7 * 8 + 1].ChessPiece = new Piece(Color.Black, PieceType.Knight);
-        _board.Tiles[7 * 8 + 2].ChessPiece = new Piece(Color.Black, PieceType.Bishop);
-        _board.Tiles[7 * 8 + 3].ChessPiece = new Piece(Color.Black, PieceType.Queen);
-        _board.Tiles[7 * 8 + 4].ChessPiece = new Piece(Color.Black, PieceType.King);
-        _board.Tiles[7 * 8 + 5].ChessPiece = new Piece(Color.Black, PieceType.Bishop);
-        _board.Tiles[7 * 8 + 6].ChessPiece = new Piece(Color.Black, PieceType.Knight);
-        _board.Tiles[7 * 8 + 7].ChessPiece = new Piece(Color.Black, PieceType.Rook);
+            _board.Tiles[6 * 8 + i].ChessPiece = new Pieces(Color.Black, PieceType.Pawn);
+        _board.Tiles[7 * 8 + 0].ChessPiece = new Pieces(Color.Black, PieceType.Rook);
+        _board.Tiles[7 * 8 + 1].ChessPiece = new Pieces(Color.Black, PieceType.Knight);
+        _board.Tiles[7 * 8 + 2].ChessPiece = new Pieces(Color.Black, PieceType.Bishop);
+        _board.Tiles[7 * 8 + 3].ChessPiece = new Pieces(Color.Black, PieceType.Queen);
+        _board.Tiles[7 * 8 + 4].ChessPiece = new Pieces(Color.Black, PieceType.King);
+        _board.Tiles[7 * 8 + 5].ChessPiece = new Pieces(Color.Black, PieceType.Bishop);
+        _board.Tiles[7 * 8 + 6].ChessPiece = new Pieces(Color.Black, PieceType.Knight);
+        _board.Tiles[7 * 8 + 7].ChessPiece = new Pieces(Color.Black, PieceType.Rook);
     }
 
     private void OnWhiteTimeOut()
@@ -101,6 +129,17 @@ public class Game : IGame
             _turnStartedAt = DateTimeOffset.UtcNow;
             _clockRunning = _clockEnabled;
         }
+        _logger.Information(
+            "Chess game started. WhitePlayer: {WhitePlayer}, " +
+            "BlackPlayer: {BlackPlayer}, CurrentTurn: {CurrentTurn}, " +
+            "VsBot: {VsBot}, ClockEnabled: {ClockEnabled}, " +
+            "InitialMinutes: {InitialMinutes}",
+            WhitePlayer?.Name,
+            BlackPlayer?.Name,
+            CurrentPlayer.PlayerColor,
+            VsBot,
+            _clockEnabled,
+            _initialPlayerTime.TotalMinutes);
     }
 
     public void Resign(Player player)
@@ -108,6 +147,11 @@ public class Game : IGame
         GameResult = (player == WhitePlayer)
             ? new GameOverResult { Type = GameOverType.Resigned, Winner = Color.Black }
             : new GameOverResult { Type = GameOverType.Resigned, Winner = Color.White };
+        _logger.Information(
+            "Player resigned. ResignedPlayer: {ResignedPlayer}, " +
+            "Winner: {Winner}",
+            player.PlayerColor,
+            GameResult.Winner);
         EndGame();
     }
 
@@ -115,12 +159,36 @@ public class Game : IGame
 
     public bool MakeMove(Move move)
     {
+        _logger.Debug(
+            "Move requested by {PlayerColor}. " +
+            "From: ({FromRow}, {FromColumn}), " +
+            "To: ({ToRow}, {ToColumn})",
+            CurrentPlayer.PlayerColor,
+            move.From.Row,
+            move.From.Column,
+            move.To.Row,
+            move.To.Column);
+
         if (CheckTimeStatus().IsExpired)
+        {
+            _logger.Warning(
+                "Move rejected because game time has expired. " +
+                "Player: {PlayerColor}",
+                CurrentPlayer.PlayerColor);
             return false;
-
+        }
         if (!IsInsideBoard(move.From) || !IsInsideBoard(move.To))
+        {
+            _logger.Warning(
+                "Move rejected because coordinate is outside board. " +
+                "From: ({FromRow}, {FromColumn}), " +
+                "To: ({ToRow}, {ToColumn})",
+                move.From.Row,
+                move.From.Column,
+                move.To.Row,
+                move.To.Column);
             return false;
-
+        }
         
         var legalMoves = GetLegalMoves(move.From);
 
@@ -134,6 +202,15 @@ public class Game : IGame
                 position.Column == move.To.Column)
             )
         {
+            _logger.Debug(
+                "Move rejected because selection or destination is illegal. " +
+                "Player: {PlayerColor}, From: ({FromRow}, {FromColumn}), " +
+                "To: ({ToRow}, {ToColumn})",
+                CurrentPlayer.PlayerColor,
+                move.From.Row,
+                move.From.Column,
+                move.To.Row,
+                move.To.Column);
             return false;
         }
 
@@ -145,13 +222,18 @@ public class Game : IGame
 
         if (!ReferenceEquals(fromTile.ChessPiece, _selectedPiece))
         {
+            _logger.Warning(
+                "Move rejected because selected piece no longer matches board state. " +
+                "From: ({FromRow}, {FromColumn})",
+                move.From.Row,
+                move.From.Column);
             ClearSelection();
             return false;
         }
 
-        var movedPieceType = _selectedPiece.Type;
+        var movedPieceType = _selectedPiece.Piece;
         var movedPieceColor = _selectedPiece.PieceColor;
-        var capturedPieceType = toTile.ChessPiece?.Type;
+        var capturedPieceType = toTile.ChessPiece?.Piece;
 
         var isEnPassant =
             movedPieceType == PieceType.Pawn &&
@@ -165,7 +247,7 @@ public class Game : IGame
         }
 
         bool isCastling =
-            _selectedPiece.Type == PieceType.King &&
+            _selectedPiece.Piece == PieceType.King &&
             Math.Abs(move.To.Column - move.From.Column) == 2;
 
         if (isCastling)
@@ -176,7 +258,7 @@ public class Game : IGame
 
         toTile.ChessPiece = _selectedPiece;
         fromTile.ChessPiece = null;
-        _selectedPiece.Hasmove = true;
+        _selectedPiece.HasMoved = true;
 
         MoveAndPromote(move);
 
@@ -187,6 +269,21 @@ public class Game : IGame
             movedPieceType,
             movedPieceColor,
             capturedPieceType));
+        
+        _logger.Information(
+            "Move completed. Player: {PlayerColor}, Piece: {PieceType}, " +
+            "From: ({FromRow}, {FromColumn}), " +
+            "To: ({ToRow}, {ToColumn}), MoveType: {MoveType}, " +
+            "CapturedPiece: {CapturedPiece}, MoveNumber: {MoveNumber}",
+            movedPieceColor,
+            movedPieceType,
+            move.From.Row,
+            move.From.Column,
+            move.To.Row,
+            move.To.Column,
+            move.Type,
+            capturedPieceType?.ToString(),
+            _moveHistory.Count);
 
         CheckMoveResult();
 
@@ -203,6 +300,7 @@ public class Game : IGame
         
         var timeStatus = CheckTimeStatus();
         if (timeStatus.IsExpired) return;
+        var previousPlayer = CurrentPlayer.PlayerColor;
 
         lock (_clockSync)
         {
@@ -211,6 +309,10 @@ public class Game : IGame
                 : WhitePlayer!;
             _turnStartedAt = DateTimeOffset.UtcNow;
         }
+        _logger.Debug(
+            "Turn switched from {PreviousPlayer} to {CurrentPlayer}",
+            previousPlayer,
+            CurrentPlayer.PlayerColor);
     }
 
     void EndGame()
@@ -221,6 +323,18 @@ public class Game : IGame
         }
         WhiteTimer.StopTimer();
         BlackTimer.StopTimer();
+        object? winner = GameResult.Type == GameOverType.Stalemate
+            ? null
+            : GameResult.Winner.ToString();
+        _logger.Information(
+            "Chess game ended. Result: {GameResult}, Winner: {Winner}, " +
+            "TotalMoves: {MoveCount}, WhiteRemainingSeconds: {WhiteTime}, " +
+            "BlackRemainingSeconds: {BlackTime}",
+            GameResult.Type,
+            winner,
+            _moveHistory.Count,
+            Math.Max(0, _whiteRemaining.TotalSeconds),
+            Math.Max(0, _blackRemaining.TotalSeconds));
         OnGameOver?.Invoke();
     }
 
@@ -260,7 +374,15 @@ public class Game : IGame
             shouldEndGame = true;
         }
 
-        if (shouldEndGame) EndGame();
+        if (shouldEndGame)
+        {
+            _logger.Warning(
+                "Player time expired. TimedOutPlayer: {TimedOutPlayer}, " +
+                "Winner: {Winner}",
+                timedOutColor,
+                GameResult.Winner);
+            EndGame();
+        }
     }
 
     
@@ -301,8 +423,10 @@ public class Game : IGame
     {
         var opponent = (CurrentPlayer == WhitePlayer) ? BlackPlayer! : WhitePlayer!;
         var opponentColor = opponent.PlayerColor;
+        var legalMoves = GetAllLegalMoves(opponentColor);
+        var kingInCheck = IsKingInCheck(opponentColor);
 
-        if (IsKingInCheck(opponentColor))
+        if (kingInCheck)
         {
             if (GetAllLegalMoves(opponentColor).Count == 0)
             {
@@ -311,19 +435,35 @@ public class Game : IGame
                     Type = GameOverType.Checkmate,
                     Winner = CurrentPlayer.PlayerColor
                 };
+                _logger.Information(
+                    "Checkmate detected. Winner: {Winner}, " +
+                    "DefeatedPlayer: {DefeatedPlayer}, MoveCount: {MoveCount}",
+                    GameResult.Winner,
+                    opponentColor,
+                    _moveHistory.Count);
                 EndGame();
             }
+            _logger.Information(
+                "King is in check. CheckedPlayer: {CheckedPlayer}, " +
+                "AvailableLegalMoves: {LegalMoveCount}",
+                opponentColor,
+                legalMoves.Count);
         }
-        else if (GetAllLegalMoves(opponentColor).Count == 0)
+        else if (legalMoves.Count == 0)
         {
             GameResult = new GameOverResult { Type = GameOverType.Stalemate };
+            _logger.Information(
+                "Stalemate detected. PlayerWithoutLegalMoves: {Player}, " +
+                "MoveCount: {MoveCount}",
+                opponentColor,
+                _moveHistory.Count);
             EndGame();
         }
     }
 
     void RemoveEnPassantPawn(Move move)
     {
-        if (_selectedPiece?.Type != PieceType.Pawn) return;
+        if (_selectedPiece?.Piece != PieceType.Pawn) return;
         if (move.To.Column != move.From.Column && _board.Tiles[move.To.Row * 8 + move.To.Column].ChessPiece == null)
         {
             int capturedRow = move.From.Row;
@@ -333,7 +473,7 @@ public class Game : IGame
 
     void MoveCastleRook(Move move)
     {
-        if (_selectedPiece?.Type != PieceType.King) return;
+        if (_selectedPiece?.Piece != PieceType.King) return;
         if (Math.Abs(move.To.Column - move.From.Column) == 2)
         {
             if (move.To.Column > move.From.Column)
@@ -341,26 +481,26 @@ public class Game : IGame
                 var rook = _board.Tiles[move.From.Row * 8 + 7].ChessPiece;
                 _board.Tiles[move.From.Row * 8 + 5].ChessPiece = rook;
                 _board.Tiles[move.From.Row * 8 + 7].ChessPiece = null;
-                if (rook != null) rook.Hasmove = true;
+                if (rook != null) rook.HasMoved = true;
             }
             else
             {
                 var rook = _board.Tiles[move.From.Row * 8 + 0].ChessPiece;
                 _board.Tiles[move.From.Row * 8 + 3].ChessPiece = rook;
                 _board.Tiles[move.From.Row * 8 + 0].ChessPiece = null;
-                if (rook != null) rook.Hasmove = true;
+                if (rook != null) rook.HasMoved = true;
             }
         }
     }
 
     void MoveAndPromote(Move move)
     {
-        if (_selectedPiece?.Type != PieceType.Pawn) return;
+        if (_selectedPiece?.Piece != PieceType.Pawn) return;
         if (move.To.Row == 0 || move.To.Row == 7)
         {
             var promotionType = NormalizePromotionType(move.PromotionType);
-            var promotedPiece = new Piece(_selectedPiece.PieceColor, promotionType);
-            promotedPiece.Hasmove = true;
+            var promotedPiece = new Pieces(_selectedPiece.PieceColor, promotionType);
+            promotedPiece.HasMoved = true;
             _board.Tiles[move.To.Row * 8 + move.To.Column].ChessPiece = promotedPiece;
         }
     }
@@ -370,9 +510,9 @@ public class Game : IGame
             ? promotionType
             : PieceType.Queen;
 
-    void AddSlidingMoves(Piece piece, Postition position, List<Postition> moves)
+    void AddSlidingMoves(Pieces pieces, Postition position, List<Postition> moves)
     {
-        int[][] directions = piece.Type switch
+        int[][] directions = pieces.Piece switch
         {
             PieceType.Rook => new[] { new[] { -1, 0 }, new[] { 1, 0 }, new[] { 0, -1 }, new[] { 0, 1 } },
             PieceType.Bishop => new[] { new[] { -1, -1 }, new[] { -1, 1 }, new[] { 1, -1 }, new[] { 1, 1 } },
@@ -395,7 +535,7 @@ public class Game : IGame
                 }
                 else
                 {
-                    if (tile.ChessPiece.PieceColor != piece.PieceColor)
+                    if (tile.ChessPiece.PieceColor != pieces.PieceColor)
                         moves.Add(new Postition { Row = r, Column = c });
                     break;
                 }
@@ -403,10 +543,10 @@ public class Game : IGame
         }
     }
 
-    void AddPawnMoves(Piece piece, Postition position, List<Postition> moves)
+    void AddPawnMoves(Pieces pieces, Postition position, List<Postition> moves)
     {
-        int dir = piece.PieceColor == Color.White ? 1 : -1;
-        int startRow = piece.PieceColor == Color.White ? 1 : 6;
+        int dir = pieces.PieceColor == Color.White ? 1 : -1;
+        int startRow = pieces.PieceColor == Color.White ? 1 : 6;
 
         int r1 = position.Row + dir;
         if (r1 >= 0 && r1 < 8 && _board.Tiles[r1 * 8 + position.Column].ChessPiece == null)
@@ -423,15 +563,15 @@ public class Game : IGame
             if (r1 >= 0 && r1 < 8 && c >= 0 && c < 8)
             {
                 var tile = _board.Tiles[r1 * 8 + c];
-                if (tile.ChessPiece != null && tile.ChessPiece.PieceColor != piece.PieceColor)
+                if (tile.ChessPiece != null && tile.ChessPiece.PieceColor != pieces.PieceColor)
                     moves.Add(new Postition { Row = r1, Column = c });
             }
         }
     }
 
-    void AddFixedMoves(Piece piece, Postition position, List<Postition> moves)
+    void AddFixedMoves(Pieces pieces, Postition position, List<Postition> moves)
     {
-        int[][] offsets = piece.Type switch
+        int[][] offsets = pieces.Piece switch
         {
             PieceType.Knight => new[]
             {
@@ -454,7 +594,7 @@ public class Game : IGame
             if (r < 0 || r >= 8 || c < 0 || c >= 8) continue;
 
             var tile = _board.Tiles[r * 8 + c];
-            if (tile.ChessPiece == null || tile.ChessPiece.PieceColor != piece.PieceColor)
+            if (tile.ChessPiece == null || tile.ChessPiece.PieceColor != pieces.PieceColor)
                 moves.Add(new Postition { Row = r, Column = c });
         }
     }
@@ -464,7 +604,7 @@ public class Game : IGame
         var piece = _board.Tiles[from.Row * 8 + from.Column].ChessPiece;
         if (piece == null || piece.PieceColor != attackerColor) return false;
 
-        if (piece.Type == PieceType.Pawn)
+        if (piece.Piece == PieceType.Pawn)
         {
             int direction = attackerColor == Color.White ? 1 : -1;
             return to.Row == from.Row + direction &&
@@ -472,7 +612,7 @@ public class Game : IGame
         }
 
         var moves = new List<Postition>();
-        switch (piece.Type)
+        switch (piece.Piece)
         {
             case PieceType.Rook:
             case PieceType.Bishop:
@@ -551,7 +691,7 @@ public class Game : IGame
         var piece = _board.Tiles[position.Row * 8 + position.Column].ChessPiece;
         if (piece == null) return moves;
 
-        switch (piece.Type)
+        switch (piece.Piece)
         {
             case PieceType.Pawn:
                 AddPawnMoves(piece, position, moves);
@@ -586,7 +726,7 @@ public class Game : IGame
             .Where(target =>
             {
                 var targetPiece = _board.Tiles[target.Row * 8 + target.Column].ChessPiece;
-                return targetPiece?.Type != PieceType.King &&
+                return targetPiece?.Piece != PieceType.King &&
                        IsMoveLegal(position, target, piece.PieceColor);
             })
             .GroupBy(target => (target.Row, target.Column))
@@ -640,13 +780,13 @@ public class Game : IGame
                     {
                         From = from,
                         To = to,
-                        Type = piece.Type == PieceType.King && Math.Abs(to.Column - column) == 2
+                        Type = piece.Piece == PieceType.King && Math.Abs(to.Column - column) == 2
                             ? MoveType.Castling
-                            : piece.Type == PieceType.Pawn && to.Column != column &&
+                            : piece.Piece == PieceType.Pawn && to.Column != column &&
                               _board.Tiles[to.Row * 8 + to.Column].ChessPiece == null
                                 ? MoveType.EnPassent
                                 : MoveType.Normal,
-                        PromotionType = piece.Type == PieceType.Pawn && (to.Row == 0 || to.Row == 7)
+                        PromotionType = piece.Piece == PieceType.Pawn && (to.Row == 0 || to.Row == 7)
                             ? PieceType.Queen
                             : PieceType.None
                     });
@@ -666,13 +806,13 @@ public class Game : IGame
         var piece = fromTile.ChessPiece;
         if (piece == null) return;
 
-        bool isEnPassant = piece.Type == PieceType.Pawn &&
+        bool isEnPassant = piece.Piece == PieceType.Pawn &&
                            move.From.Column != move.To.Column &&
                            toTile.ChessPiece == null;
         if (isEnPassant)
             _board.Tiles[move.From.Row * 8 + move.To.Column].ChessPiece = null;
 
-        bool isCastling = piece.Type == PieceType.King &&
+        bool isCastling = piece.Piece == PieceType.King &&
                           Math.Abs(move.To.Column - move.From.Column) == 2;
         if (isCastling)
         {
@@ -681,33 +821,33 @@ public class Game : IGame
             var rook = _board.Tiles[move.From.Row * 8 + rookFromColumn].ChessPiece;
             _board.Tiles[move.From.Row * 8 + rookToColumn].ChessPiece = rook;
             _board.Tiles[move.From.Row * 8 + rookFromColumn].ChessPiece = null;
-            if (rook != null) rook.Hasmove = true;
+            if (rook != null) rook.HasMoved = true;
         }
 
         toTile.ChessPiece = piece;
         fromTile.ChessPiece = null;
-        piece.Hasmove = true;
+        piece.HasMoved = true;
 
-        if (piece.Type == PieceType.Pawn && (move.To.Row == 0 || move.To.Row == 7))
+        if (piece.Piece == PieceType.Pawn && (move.To.Row == 0 || move.To.Row == 7))
         {
-            var promotedPiece = new Piece(piece.PieceColor, NormalizePromotionType(move.PromotionType));
-            promotedPiece.Hasmove = true;
+            var promotedPiece = new Pieces(piece.PieceColor, NormalizePromotionType(move.PromotionType));
+            promotedPiece.HasMoved = true;
             toTile.ChessPiece = promotedPiece;
         }
     }
 
-    List<Postition> GetCastleMoves(Postition kingPos, Piece king)
+    List<Postition> GetCastleMoves(Postition kingPos, Pieces king)
     {
         var moves = new List<Postition>();
         int homeRow = king.PieceColor == Color.White ? 0 : 7;
-        if (king.Hasmove || kingPos.Row != homeRow || kingPos.Column != 4 ||
+        if (king.HasMoved || kingPos.Row != homeRow || kingPos.Column != 4 ||
             IsKingInCheck(king.PieceColor)) return moves;
         
         
         int row = kingPos.Row;
         var kingSideRook = _board.Tiles[row * 8 + 7].ChessPiece;
-        if (kingSideRook != null && kingSideRook.Type == PieceType.Rook &&
-            kingSideRook.PieceColor == king.PieceColor && !kingSideRook.Hasmove)
+        if (kingSideRook != null && kingSideRook.Piece == PieceType.Rook &&
+            kingSideRook.PieceColor == king.PieceColor && !kingSideRook.HasMoved)
         {
             if (_board.Tiles[row * 8 + 5].ChessPiece == null &&
                 _board.Tiles[row * 8 + 6].ChessPiece == null)
@@ -720,8 +860,8 @@ public class Game : IGame
             }
         }
         var queenSideRook = _board.Tiles[row * 8 + 0].ChessPiece;
-        if (queenSideRook != null && queenSideRook.Type == PieceType.Rook &&
-            queenSideRook.PieceColor == king.PieceColor && !queenSideRook.Hasmove)
+        if (queenSideRook != null && queenSideRook.Piece == PieceType.Rook &&
+            queenSideRook.PieceColor == king.PieceColor && !queenSideRook.HasMoved)
         {
             if (_board.Tiles[row * 8 + 1].ChessPiece == null &&
                 _board.Tiles[row * 8 + 2].ChessPiece == null &&
@@ -747,7 +887,7 @@ public class Game : IGame
                 var piece = _board.Tiles[r * 8 + c].ChessPiece;
                 if (piece != null && piece.PieceColor == attackerColor)
                 {
-                    if (piece.Type == PieceType.Pawn)
+                    if (piece.Piece == PieceType.Pawn)
                     {
                         int dir = (attackerColor == Color.White) ? 1 : -1;
                         if (r + dir == targetPos.Row && (c - 1 == targetPos.Column || c + 1 == targetPos.Column))
@@ -774,7 +914,7 @@ public class Game : IGame
         if (_lastMove.Equals(default(Move))) return moves;
 
         var pawn = _board.Tiles[pawnPos.Row * 8 + pawnPos.Column].ChessPiece;
-        if (pawn == null || pawn.Type != PieceType.Pawn) return moves;
+        if (pawn == null || pawn.Piece != PieceType.Pawn) return moves;
 
         int requiredPawnRow = pawn.PieceColor == Color.White ? 4 : 3;
         if (pawnPos.Row != requiredPawnRow) return moves;
@@ -786,7 +926,7 @@ public class Game : IGame
             var lastMovedPiece = _board.Tiles[_lastMove.To.Row * 8 + _lastMove.To.Column].ChessPiece;
 
             if (lastMovedPiece != null &&
-                lastMovedPiece.Type == PieceType.Pawn &&
+                lastMovedPiece.Piece == PieceType.Pawn &&
                 lastMovedPiece.PieceColor != pawn.PieceColor &&
                 _lastMove.From.Column == _lastMove.To.Column &&
                 _lastMove.From.Row == (lastMovedPiece.PieceColor == Color.White ? 1 : 6))
@@ -833,7 +973,7 @@ public class Game : IGame
             for (int c = 0; c < 8; c++)
             {
                 var piece = _board.Tiles[r * 8 + c].ChessPiece;
-                if (piece != null && piece.Type == PieceType.King && piece.PieceColor == kingColor)
+                if (piece != null && piece.Piece == PieceType.King && piece.PieceColor == kingColor)
                 {
                     return new Postition { Row = r, Column = c };
                 }
@@ -902,7 +1042,7 @@ public class Game : IGame
             var piece = board.Tiles[i].ChessPiece;
             if (piece != null)
             {
-                int pieceValue = piece.Type switch
+                int pieceValue = piece.Piece switch
                 {
                     PieceType.Pawn => 10,
                     PieceType.Knight => 30,
@@ -1003,19 +1143,56 @@ public class Game : IGame
 
     public Move? MakeBotMove(int depth = DefaultBotDepth)
     {
-        if (CheckTimeStatus().IsExpired) return null;
+        if (CheckTimeStatus().IsExpired)
+        {
+            _logger.Warning(
+                "Bot move cancelled because game time has expired.");
+            return null;
+        }
 
         var color = CurrentPlayer.PlayerColor;
+        var safeDepth = Math.Clamp(depth, 1, 4);
         var bestMove = GetBestMove(color, depth);
-        if (bestMove == null) return null;
+        var stopwatch = Stopwatch.StartNew();
+        
+        _logger.Information(
+            "Bot search started. Color: {BotColor}, Depth: {Depth}",
+            color,
+            safeDepth);
+        if (bestMove == null)
+        {
+            _logger.Warning(
+                "Bot search completed without available move. " +
+                "Color: {BotColor}, Depth: {Depth}, ElapsedMs: {ElapsedMs}",
+                color,
+                safeDepth,
+                stopwatch.ElapsedMilliseconds);
+            return null;
+        }
 
-        // Waktu pencarian Negamax ikut dihitung sebagai waktu berpikir bot.
-        if (CheckTimeStatus().IsExpired) return null;
+        if (CheckTimeStatus().IsExpired)
+        {
+            _logger.Warning(
+                "Bot move cancelled because time expired during search. " +
+                "ElapsedMs: {ElapsedMs}",
+                stopwatch.ElapsedMilliseconds);
+            return null;
+        }
 
         if (!TrySelectPiece(bestMove.Value.From))
+        {
+            _logger.Error(
+                "Bot Cant Select Piece. " +
+                "ElapsedMs: {ElapsedMs}",
+                stopwatch.ElapsedMilliseconds);
             return null;
+        }
 
         var success = MakeMove(bestMove.Value);
+        _logger.Information(
+            "Bot Success Select Piece " +
+            "ElapsedMs: {ElapsedMs}",
+            stopwatch.ElapsedMilliseconds);
         return success ? bestMove : null;
     }
 }

@@ -2,7 +2,7 @@ using ChessConsole.Enums;
 
 namespace ChessConsole.Interface;
 
-public class IPiece
+public interface IPiece
 {
     public Color PieceColor { get; }
     public PieceType Piece { get; }

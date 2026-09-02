@@ -1,10 +1,9 @@
 using System.Reflection;
 using System.Runtime.Serialization;
-using NUnit.Framework;
 using ChessConsole.Enums;
 using ChessConsole.Model;
 
-namespace Game.Tests;
+namespace Game.Tests.GameEngine;
 
 [TestFixture]
 [NonParallelizable]
@@ -55,7 +54,7 @@ public class MakeMoveTests
         var movedPiece = board.Tiles[3 * 8 + 0].ChessPiece;
         Assert.IsNotNull(movedPiece);
         
-        Assert.That(movedPiece.Type, Is.EqualTo(PieceType.Pawn));
+        Assert.That(movedPiece.Piece, Is.EqualTo(PieceType.Pawn));
         Assert.That(movedPiece.PieceColor, Is.EqualTo(Color.White));
         
         Assert.That(_game.CurrentPlayer.PlayerColor, Is.EqualTo(Color.Black));
@@ -69,7 +68,7 @@ public class MakeMoveTests
         var board = PrepareCleanBoardWithKings();
         
         //taruh Pawn E6
-        board.Tiles[6 * 8 + 3 ].ChessPiece = new Piece(Color.White, PieceType.Pawn);
+        board.Tiles[6 * 8 + 3 ].ChessPiece = new Pieces(Color.White, PieceType.Pawn);
         
 
         
@@ -95,7 +94,7 @@ public class MakeMoveTests
         // Pastikan bidak di a8 sekarang adalah Queen, bukan Pion
         var promotedPiece = board.Tiles[7 * 8 + 3].ChessPiece;
         Assert.IsNotNull(promotedPiece);
-        Assert.That(promotedPiece.Type, Is.EqualTo(PieceType.Queen));
+        Assert.That(promotedPiece.Piece, Is.EqualTo(PieceType.Queen));
     }
     
     
@@ -105,9 +104,9 @@ public class MakeMoveTests
 {
     var board = PrepareCleanBoardWithKings();
     
-    board.Tiles[1 * 8 + 4].ChessPiece = new Piece(Color.White, PieceType.Pawn); // White Pawn E2
-    board.Tiles[6 * 8 + 4].ChessPiece = new Piece(Color.Black, PieceType.Pawn); // Black Pawn E7
-    board.Tiles[6 * 8 + 3].ChessPiece = new Piece(Color.Black, PieceType.Pawn); // Black Pawn D7
+    board.Tiles[1 * 8 + 4].ChessPiece = new Pieces(Color.White, PieceType.Pawn); // White Pawn E2
+    board.Tiles[6 * 8 + 4].ChessPiece = new Pieces(Color.Black, PieceType.Pawn); // Black Pawn E7
+    board.Tiles[6 * 8 + 3].ChessPiece = new Pieces(Color.Black, PieceType.Pawn); // Black Pawn D7
   
     
     // ==========================================
@@ -182,7 +181,7 @@ public class MakeMoveTests
         var board = PrepareCleanBoardWithKings();
         
         //taruh Rook A1
-        board.Tiles[0 * 8 + 0 ].ChessPiece = new Piece(Color.White, PieceType.Rook);
+        board.Tiles[0 * 8 + 0 ].ChessPiece = new Pieces(Color.White, PieceType.Rook);
         
         //a1
         var fromPos = new Postition{Row = 0, Column = 0};
@@ -209,7 +208,7 @@ public class MakeMoveTests
         var movedPiece = board.Tiles[7 * 8 + 0].ChessPiece;
         Assert.IsNotNull(movedPiece);
         
-        Assert.That(movedPiece.Type, Is.EqualTo(PieceType.Rook));
+        Assert.That(movedPiece.Piece, Is.EqualTo(PieceType.Rook));
         Assert.That(movedPiece.PieceColor, Is.EqualTo(Color.White));
         
         Assert.That(_game.CurrentPlayer.PlayerColor, Is.EqualTo(Color.Black));
@@ -221,7 +220,7 @@ public class MakeMoveTests
         var board = PrepareCleanBoardWithKings();
         
         // Arrange: Taruh Kuda Putih di b1 (Row 0, Column 1)
-        board.Tiles[0 * 8 + 1].ChessPiece = new Piece(Color.White, PieceType.Knight);
+        board.Tiles[0 * 8 + 1].ChessPiece = new Pieces(Color.White, PieceType.Knight);
         
         var fromPos = new Postition { Row = 0, Column = 1 };
 
@@ -247,7 +246,7 @@ public class MakeMoveTests
             
         var movedPiece = board.Tiles[2 * 8 + 2].ChessPiece;
         Assert.IsNotNull(movedPiece);
-        Assert.That(movedPiece.Type, Is.EqualTo(PieceType.Knight));
+        Assert.That(movedPiece.Piece, Is.EqualTo(PieceType.Knight));
         Assert.That(movedPiece.PieceColor, Is.EqualTo(Color.White));
         Assert.That(_game.CurrentPlayer.PlayerColor, Is.EqualTo(Color.Black));
     }
@@ -258,7 +257,7 @@ public class MakeMoveTests
 
         // Taruh Gajah Putih di c4 (Row 3, Column 2) - posisi terbuka tanpa halangan
         var fromPos = new Postition { Row = 3, Column = 2 };
-        board.Tiles[3 * 8 + 2].ChessPiece = new Piece(Color.White, PieceType.Bishop);
+        board.Tiles[3 * 8 + 2].ChessPiece = new Pieces(Color.White, PieceType.Bishop);
 
         // Melangkah diagonal ke f7 (Row 6, Column 5)
         var toPos = new Postition { Row = 6, Column = 5 };
@@ -282,7 +281,7 @@ public class MakeMoveTests
     
         var movedPiece = board.Tiles[6 * 8 + 5].ChessPiece;
         Assert.IsNotNull(movedPiece);
-        Assert.That(movedPiece.Type, Is.EqualTo(PieceType.Bishop));
+        Assert.That(movedPiece.Piece, Is.EqualTo(PieceType.Bishop));
         Assert.That(movedPiece.PieceColor, Is.EqualTo(Color.White));
         Assert.That(_game.CurrentPlayer.PlayerColor, Is.EqualTo(Color.Black));
     }
@@ -293,10 +292,10 @@ public class MakeMoveTests
 
         // Taruh Menteri Putih di d3 (Row 2, Column 3)
         var fromPos = new Postition { Row = 2, Column = 3 };
-        board.Tiles[2 * 8 + 3].ChessPiece = new Piece(Color.White, PieceType.Queen);
+        board.Tiles[2 * 8 + 3].ChessPiece = new Pieces(Color.White, PieceType.Queen);
 
         // Taruh Benteng Hitam di d6 (Row 5, Column 3) untuk memicu capture
-        board.Tiles[5 * 8 + 3].ChessPiece = new Piece(Color.Black, PieceType.Rook);
+        board.Tiles[5 * 8 + 3].ChessPiece = new Pieces(Color.Black, PieceType.Rook);
 
         // Tujuan: Melangkah lurus memakan Benteng Hitam di d6
         var toPos = new Postition { Row = 5, Column = 3 };
@@ -320,7 +319,7 @@ public class MakeMoveTests
     
         var movedPiece = board.Tiles[5 * 8 + 3].ChessPiece;
         Assert.IsNotNull(movedPiece);
-        Assert.That(movedPiece.Type, Is.EqualTo(PieceType.Queen));
+        Assert.That(movedPiece.Piece, Is.EqualTo(PieceType.Queen));
         Assert.That(movedPiece.PieceColor, Is.EqualTo(Color.White));
     
         var lastHistory = _game.GetMoveHistory().LastOrDefault();
@@ -404,8 +403,8 @@ public class MakeMoveTests
         }
 
         // 2. Taruh Raja Putih (e1) dan Hitam (e8) agar validasi engine aman
-        board.Tiles[0 * 8 + 4].ChessPiece = new Piece(Color.White, PieceType.King); // e1
-        board.Tiles[7 * 8 + 4].ChessPiece = new Piece(Color.Black, PieceType.King); // e8
+        board.Tiles[0 * 8 + 4].ChessPiece = new Pieces(Color.White, PieceType.King); // e1
+        board.Tiles[7 * 8 + 4].ChessPiece = new Pieces(Color.Black, PieceType.King); // e8
 
         return board;
     }
@@ -458,7 +457,7 @@ public class MakeMoveTests
         Color color,
         PieceType pieceType)
     {
-        board.Tiles[row * 8 + column].ChessPiece = new Piece(color, pieceType);
+        board.Tiles[row * 8 + column].ChessPiece = new Pieces(color, pieceType);
     }
 
     // Game hanya membaca PlayerColor. Helper ini membuat test tidak terikat

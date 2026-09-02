@@ -5,7 +5,7 @@ using ChessConsole.Model;
 using NUnit.Framework;
 using Moq;
 
-namespace Game.Tests;
+namespace Game.Tests.GameEngine;
 
 
 public class IGame_Tests

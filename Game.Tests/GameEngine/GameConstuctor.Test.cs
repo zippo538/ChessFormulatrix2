@@ -1,7 +1,7 @@
 using ChessConsole.Enums;
 using ChessConsole.Model;
 
-namespace Game.Tests;
+namespace Game.Tests.GameEngine;
 
 [TestFixture]   
 public class GameConstuctorTests
@@ -44,7 +44,7 @@ public class GameConstuctorTests
 
         var pieceAtA1 = board.Tiles[0].ChessPiece;
         Assert.IsNotNull(pieceAtA1);
-        Assert.That(pieceAtA1.Type, Is.EqualTo(PieceType.Rook));
+        Assert.That(pieceAtA1.Piece, Is.EqualTo(PieceType.Rook));
         Assert.That(pieceAtA1.PieceColor, Is.EqualTo(Color.White));
     }
 

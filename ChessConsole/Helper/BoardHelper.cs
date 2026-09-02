@@ -15,9 +15,9 @@ public class BoardHelper
             
             if (originalPiece != null)
             {
-                newBoard.Tiles[i].ChessPiece = new Piece(originalPiece.PieceColor, originalPiece.Type)
+                newBoard.Tiles[i].ChessPiece = new Pieces(originalPiece.PieceColor, originalPiece.Piece)
                 {
-                    Hasmove = originalPiece.Hasmove 
+                    HasMoved = originalPiece.HasMoved 
                 };
             }
         }

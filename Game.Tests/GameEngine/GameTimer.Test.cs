@@ -1,7 +1,7 @@
 using ChessConsole.Model;
 using ChessConsole.Enums;
 
-namespace Game.Tests;
+namespace Game.Tests.GameEngine;
 
 [TestFixture]
 public class GameTimerTest

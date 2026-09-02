@@ -15,10 +15,10 @@ public class ChessProfile : Profile
             .ForMember(dest => dest.Column, opt => opt.MapFrom(src => src.Column));
 
         // Konfigurasi Piece[cite: 16]
-        CreateMap<Piece, PieceDto>()
+        CreateMap<Pieces, PieceDto>()
             .ForMember(dest => dest.PieceColor, opt => opt.MapFrom(src => src.PieceColor.ToString()))
-            .ForMember(dest => dest.Type, opt => opt.MapFrom(src => src.Type.ToString()))
-            .ForMember(dest => dest.HasMoved, opt => opt.MapFrom(src => src.Hasmove));
+            .ForMember(dest => dest.Type, opt => opt.MapFrom(src => src.Piece.ToString()))
+            .ForMember(dest => dest.HasMoved, opt => opt.MapFrom(src => src.HasMoved));
 
         // Konfigurasi Tile[cite: 12]
         CreateMap<Tile, TileDto>();

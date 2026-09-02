@@ -25,6 +25,9 @@
 &lt;/SessionState&gt;</s:String>
 	<s:String x:Key="/Default/Environment/UnitTesting/UnitTestSessionStore/Sessions/=ecb97817_002Deb04_002D4a3d_002D97ce_002Dff052d4fd557/@EntryIndexedValue">&lt;SessionState ContinuousTestingMode="0" IsActive="True" Name="CheckMoveTest" xmlns="urn:schemas-jetbrains-com:jetbrains-ut-session"&gt;
   &lt;TestAncestor&gt;
-    &lt;TestId&gt;NUnit3x::39EE9B25-B88E-46C8-8705-751BFCD44D4F::net8.0::Game.Tests.CheckMoveTest&lt;/TestId&gt;
+    &lt;TestId&gt;NUnit3x::39EE9B25-B88E-46C8-8705-751BFCD44D4F::net8.0::Game.Tests.Controllers.ChessControllerTest&lt;/TestId&gt;
+    &lt;TestId&gt;NUnit3x::39EE9B25-B88E-46C8-8705-751BFCD44D4F::net8.0::Game.Tests.Controllers.ChessControllerResponse_Test&lt;/TestId&gt;
+    &lt;TestId&gt;NUnit3x::39EE9B25-B88E-46C8-8705-751BFCD44D4F::net8.0::Game.Tests.GameEngine.IPlayerTest&lt;/TestId&gt;
+    &lt;TestId&gt;NUnit3x::39EE9B25-B88E-46C8-8705-751BFCD44D4F::net8.0::Game.Tests.GameEngine.PieceTest&lt;/TestId&gt;
   &lt;/TestAncestor&gt;
 &lt;/SessionState&gt;</s:String></wpf:ResourceDictionary>

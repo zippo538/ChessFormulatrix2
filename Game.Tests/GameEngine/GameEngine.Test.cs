@@ -1,6 +1,7 @@
-using ChessConsole.Model;
 using ChessConsole.Enums;
-namespace Game.Tests;
+using ChessConsole.Model;
+
+namespace Game.Tests.GameEngine;
 
 [TestFixture]
 public class GameEngineTest
@@ -27,38 +28,38 @@ public class GameEngineTest
             var board = _game.GetCurrentBoard();
 
             // Cek Bidak Perwira Putih (Row 0)
-            Assert.That(board.Tiles[0 * 8 + 0].ChessPiece?.Type, Is.EqualTo(PieceType.Rook));
-            Assert.That(board.Tiles[0 * 8 + 1].ChessPiece?.Type, Is.EqualTo(PieceType.Knight));
-            Assert.That(board.Tiles[0 * 8 + 2].ChessPiece?.Type, Is.EqualTo(PieceType.Bishop));
-            Assert.That(board.Tiles[0 * 8 + 3].ChessPiece?.Type, Is.EqualTo(PieceType.Queen));
-            Assert.That(board.Tiles[0 * 8 + 4].ChessPiece?.Type, Is.EqualTo(PieceType.King));
-            Assert.That(board.Tiles[0 * 8 + 5].ChessPiece?.Type, Is.EqualTo(PieceType.Bishop));
-            Assert.That(board.Tiles[0 * 8 + 6].ChessPiece?.Type, Is.EqualTo(PieceType.Knight));
-            Assert.That(board.Tiles[0 * 8 + 7].ChessPiece?.Type, Is.EqualTo(PieceType.Rook));
+            Assert.That(board.Tiles[0 * 8 + 0].ChessPiece?.Piece, Is.EqualTo(PieceType.Rook));
+            Assert.That(board.Tiles[0 * 8 + 1].ChessPiece?.Piece, Is.EqualTo(PieceType.Knight));
+            Assert.That(board.Tiles[0 * 8 + 2].ChessPiece?.Piece, Is.EqualTo(PieceType.Bishop));
+            Assert.That(board.Tiles[0 * 8 + 3].ChessPiece?.Piece, Is.EqualTo(PieceType.Queen));
+            Assert.That(board.Tiles[0 * 8 + 4].ChessPiece?.Piece, Is.EqualTo(PieceType.King));
+            Assert.That(board.Tiles[0 * 8 + 5].ChessPiece?.Piece, Is.EqualTo(PieceType.Bishop));
+            Assert.That(board.Tiles[0 * 8 + 6].ChessPiece?.Piece, Is.EqualTo(PieceType.Knight));
+            Assert.That(board.Tiles[0 * 8 + 7].ChessPiece?.Piece, Is.EqualTo(PieceType.Rook));
 
             // Cek Pion Putih (Row 1) & Pion Hitam (Row 6)
             for (int col = 0; col < 8; col++)
             {
                 var whitePawn = board.Tiles[1 * 8 + col].ChessPiece;
                 Assert.IsNotNull(whitePawn);
-                Assert.That(whitePawn!.Type, Is.EqualTo(PieceType.Pawn));
+                Assert.That(whitePawn!.Piece, Is.EqualTo(PieceType.Pawn));
                 Assert.That(whitePawn.PieceColor, Is.EqualTo(Color.White));
 
                 var blackPawn = board.Tiles[6 * 8 + col].ChessPiece;
                 Assert.IsNotNull(blackPawn);
-                Assert.That(blackPawn!.Type, Is.EqualTo(PieceType.Pawn));
+                Assert.That(blackPawn!.Piece, Is.EqualTo(PieceType.Pawn));
                 Assert.That(blackPawn.PieceColor, Is.EqualTo(Color.Black));
             }
 
             // Cek Bidak Perwira Hitam (Row 7)
-            Assert.That(board.Tiles[7 * 8 + 0].ChessPiece?.Type, Is.EqualTo(PieceType.Rook));
-            Assert.That(board.Tiles[7 * 8 + 1].ChessPiece?.Type, Is.EqualTo(PieceType.Knight));
-            Assert.That(board.Tiles[7 * 8 + 2].ChessPiece?.Type, Is.EqualTo(PieceType.Bishop));
-            Assert.That(board.Tiles[7 * 8 + 3].ChessPiece?.Type, Is.EqualTo(PieceType.Queen));
-            Assert.That(board.Tiles[7 * 8 + 4].ChessPiece?.Type, Is.EqualTo(PieceType.King));
-            Assert.That(board.Tiles[7 * 8 + 5].ChessPiece?.Type, Is.EqualTo(PieceType.Bishop));
-            Assert.That(board.Tiles[7 * 8 + 6].ChessPiece?.Type, Is.EqualTo(PieceType.Knight));
-            Assert.That(board.Tiles[7 * 8 + 7].ChessPiece?.Type, Is.EqualTo(PieceType.Rook));
+            Assert.That(board.Tiles[7 * 8 + 0].ChessPiece?.Piece, Is.EqualTo(PieceType.Rook));
+            Assert.That(board.Tiles[7 * 8 + 1].ChessPiece?.Piece, Is.EqualTo(PieceType.Knight));
+            Assert.That(board.Tiles[7 * 8 + 2].ChessPiece?.Piece, Is.EqualTo(PieceType.Bishop));
+            Assert.That(board.Tiles[7 * 8 + 3].ChessPiece?.Piece, Is.EqualTo(PieceType.Queen));
+            Assert.That(board.Tiles[7 * 8 + 4].ChessPiece?.Piece, Is.EqualTo(PieceType.King));
+            Assert.That(board.Tiles[7 * 8 + 5].ChessPiece?.Piece, Is.EqualTo(PieceType.Bishop));
+            Assert.That(board.Tiles[7 * 8 + 6].ChessPiece?.Piece, Is.EqualTo(PieceType.Knight));
+            Assert.That(board.Tiles[7 * 8 + 7].ChessPiece?.Piece, Is.EqualTo(PieceType.Rook));
 
             // Cek Baris Tengah (Row 2 sampai 5) Wajib Kosong (Null)
             for (int row = 2; row <= 5; row++)

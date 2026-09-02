@@ -3,6 +3,8 @@ using Spectre.Console.Rendering;
 using ChessConsole.Enums;
 using ChessConsole.Model;
 using ChessConsole2;
+using Serilog;
+using Serilog.Events;
 using Color = ChessConsole.Enums.Color;
 
 namespace ChessConsole;
@@ -11,85 +13,219 @@ public class Program
 {
     public static void Main()
     {
-        Console.OutputEncoding = System.Text.Encoding.UTF8;
+        ConfigureLogging();
+        try
+        {
+            Log.Information("Chess Engine application started");
+
+            RunGame();
+        }
+        catch (Exception exception)
+        {
+            Log.Fatal(
+                exception,
+                "Chess Engine stopped because of an unhandled exception");
+
+            AnsiConsole.MarkupLine(
+                "\n[bold red]Terjadi kesalahan pada aplikasi.[/]");
+
+            AnsiConsole.WriteException(
+                exception,
+                ExceptionFormats.ShortenEverything);
+        }
+        finally
+        {
+            Log.Information("Chess Console application stopped");
+
+            Log.CloseAndFlush();
+        }
+    }
+     private static void RunGame()
+    {
+        Console.OutputEncoding =
+            System.Text.Encoding.UTF8;
+
         ShowTitle();
 
-        var whitePlayer = new Player(AskPlayerName("Nama pemain Putih", "Pemain Putih"), Color.White);
-        var blackPlayer = new Player(AskPlayerName("Nama pemain Hitam", "Pemain Hitam"), Color.Black);
-        var game = new Game(whitePlayer, blackPlayer,false);
+        var whitePlayer = new Player(
+            AskPlayerName(
+                "Nama pemain Putih",
+                "Pemain Putih"),
+            Color.White);
+
+        var blackPlayer = new Player(
+            AskPlayerName(
+                "Nama pemain Hitam",
+                "Pemain Hitam"),
+            Color.Black);
+
+        var gameId = Guid.NewGuid().ToString();
+
+        var gameLogger = Log.Logger
+            .ForContext<Game>()
+            .ForContext("GameId", gameId);
+
+        var game = new Game(
+            whitePlayer,
+            blackPlayer,
+            vsBot: false,
+            initialMinutes: 10,
+            clockEnabled: true,
+            logger: gameLogger,
+            gameId: gameId);
+
         var gameOver = false;
 
-        game.OnGameOver += () => gameOver = true;
+        game.OnGameOver += () =>
+        {
+            gameOver = true;
+        };
+
+        Log.Information(
+            "New chess session created. GameId: {GameId}, " +
+            "WhitePlayer: {WhitePlayer}, BlackPlayer: {BlackPlayer}",
+            gameId,
+            whitePlayer.Name,
+            blackPlayer.Name);
 
         game.StartGame();
-        // Event timer berjalan pada background thread, sehingga Console.Title
-        // tetap diperbarui meskipun aplikasi sedang menunggu input pemain.
-        game.WhiteTimer.OnTimerTick += () => UpdateConsoleTitle(game);
-        game.BlackTimer.OnTimerTick += () => UpdateConsoleTitle(game);
+
+        game.WhiteTimer.OnTimerTick +=
+            () => UpdateConsoleTitle(game);
+
+        game.BlackTimer.OnTimerTick +=
+            () => UpdateConsoleTitle(game);
+
         UpdateConsoleTitle(game);
 
         while (!gameOver)
         {
-            // Render awal giliran tanpa highlight
             DrawScreen(game);
+
             var from = AskPieceOption(game);
+
             if (from is null)
             {
+                if (game.GameResult.Type == GameOverType.None)
+                {
+                    Log.Information(
+                        "Game stopped manually by player. " +
+                        "CurrentPlayer: {CurrentPlayer}, MoveCount: {MoveCount}",
+                        game.CurrentPlayer.PlayerColor,
+                        game.GetMoveHistory().Count);
+                }
+
                 break;
             }
 
             var fromPosition = from.Value;
+
             if (!game.TrySelectPiece(fromPosition))
             {
+                Log.Debug(
+                    "Player failed to select piece. " +
+                    "Player: {Player}, Position: {Position}",
+                    game.CurrentPlayer.PlayerColor,
+                    ToChessSquare(fromPosition));
+
                 AnsiConsole.MarkupLine(
-                    "[red]Bidak tidak dapat dipilih. Silakan pilih ulang.[/]");
+                    "[red]Bidak tidak dapat dipilih. " +
+                    "Silakan pilih ulang.[/]");
+
                 continue;
             }
-            
-            // Ambil semua langkah legal dari bidak tersebut
-            List<Postition>? availableMoves = game.GetAvailableMovesForSelectedPiece();
 
-            // Render ulang layar dengan highlight posisi asal (biru) dan SEMUA tujuan (hijau)
-            DrawScreen(game, fromPosition, availableMoves);
+            var availableMoves =
+                game.GetAvailableMovesForSelectedPiece();
 
-            // Tujuan dipilih langsung dari daftar movement legal.
+            DrawScreen(
+                game,
+                fromPosition,
+                availableMoves);
+
             var to = AskMoveOption(
                 game.GetCurrentBoard(),
                 fromPosition,
-                availableMoves ?? new List<Postition>());
-            if (to is null) continue;
-            
+                availableMoves);
+
+            if (to is null)
+            {
+                Log.Debug(
+                    "Player cancelled destination selection. " +
+                    "Player: {Player}, SelectedPosition: {Position}",
+                    game.CurrentPlayer.PlayerColor,
+                    ToChessSquare(fromPosition));
+
+                continue;
+            }
+
             var toPosition = to.Value;
-            
-            var movingPiece = game.GetCurrentBoard()
-                .Tiles[fromPosition.Row * 8 + fromPosition.Column]
+
+            var movingPiece = game
+                .GetCurrentBoard()
+                .Tiles[
+                    fromPosition.Row * 8 +
+                    fromPosition.Column]
                 .ChessPiece;
 
             var promotionType = PieceType.Queen;
-            var isPawnPromotion = movingPiece != null &&
-                                  movingPiece.Type == PieceType.Pawn &&
-                                  (toPosition.Row == 0 || toPosition.Row == 7) &&
-                                  (availableMoves?.Exists(move =>
-                                      move.Row == toPosition.Row &&
-                                      move.Column == toPosition.Column) ?? false);
+
+            var isPawnPromotion =
+                movingPiece != null &&
+                movingPiece.Piece == PieceType.Pawn &&
+                (toPosition.Row == 0 ||
+                 toPosition.Row == 7) &&
+                availableMoves.Exists(move =>
+                    move.Row == toPosition.Row &&
+                    move.Column == toPosition.Column);
 
             if (isPawnPromotion)
             {
                 promotionType = AskPromotionPiece();
             }
 
-            game.MakeMove(new Move
+            var moveSucceeded = game.MakeMove(new Move
             {
                 From = fromPosition,
                 To = toPosition,
                 Type = MoveType.Normal,
                 PromotionType = promotionType
             });
+
+            if (!moveSucceeded)
+            {
+                Log.Warning(
+                    "Move failed after selection. " +
+                    "Player: {Player}, From: {From}, To: {To}",
+                    game.CurrentPlayer.PlayerColor,
+                    ToChessSquare(fromPosition),
+                    ToChessSquare(toPosition));
+
+                AnsiConsole.MarkupLine(
+                    "[red]Langkah gagal dijalankan.[/]");
+            }
         }
 
         DrawScreen(game);
-        if (gameOver) ShowResult(game);
-        else AnsiConsole.MarkupLine("\n[yellow]Permainan dihentikan oleh pemain.[/]");
+
+        if (gameOver)
+        {
+            ShowResult(game);
+
+            Log.Information(
+                "Game result displayed. Result: {Result}, " +
+                "Winner: {Winner}, MoveCount: {MoveCount}",
+                game.GameResult.Type,
+                game.GameResult.Type == GameOverType.Stalemate
+                    ? null
+                    : game.GameResult.Winner.ToString(),
+                game.GetMoveHistory().Count);
+        }
+        else
+        {
+            AnsiConsole.MarkupLine(
+                "\n[yellow]Permainan dihentikan oleh pemain.[/]");
+        }
     }
 
     private static void DrawScreen(Game game, Postition? selectedPiece = null, List<Postition>? availableMoves = null)
@@ -129,7 +265,7 @@ public class Program
         table.AddColumn(new TableColumn(string.Empty).Centered());
         for (var col = 0; col < 8; col++) table.AddColumn(new TableColumn(string.Empty).Centered().NoWrap());
 
-        Piece? selectedChessPiece = null;
+        Pieces? selectedChessPiece = null;
         if (selectedPiece.HasValue)
         {
             var selected = selectedPiece.Value;
@@ -145,7 +281,7 @@ public class Program
                 var background = (row + col) % 2 == 0 ? "grey84" : "grey37";
 
                 bool isAvailableMove = availableMoves != null && availableMoves.Exists(m => m.Row == row && m.Column == col);
-                bool isCaptureMove = piece != null || (selectedChessPiece?.Type == PieceType.Pawn && selectedPiece.HasValue && selectedPiece.Value.Column != col);
+                bool isCaptureMove = piece != null || (selectedChessPiece?.Piece == PieceType.Pawn && selectedPiece.HasValue && selectedPiece.Value.Column != col);
 
                 if (selectedPiece.HasValue && selectedPiece.Value.Row == row && selectedPiece.Value.Column == col)
                 {
@@ -253,7 +389,7 @@ public class Program
             var square = ToChessSquare(position);
             var targetPiece = board.Tiles[position.Row * 8 + position.Column].ChessPiece;
             var isCapture = targetPiece != null ||
-                            (selectedPiece?.Type == PieceType.Pawn &&
+                            (selectedPiece?.Piece == PieceType.Pawn &&
                              fromPosition.Column != position.Column);
 
             var captureDetail = targetPiece != null
@@ -318,7 +454,7 @@ public class Program
 
                 var position = new Postition { Row = row, Column = column };
                 var square = ToChessSquare(position);
-                var label = $"{GetPieceChar(piece)} [bold]{piece.Type}[/] [grey]— {square}[/]";
+                var label = $"{GetPieceChar(piece)} [bold]{piece.Piece}[/] [grey]— {square}[/]";
 
                 choices.Add(label);
                 optionPositions[label] = position;
@@ -364,7 +500,7 @@ public class Program
         table.AddColumn(new TableColumn(string.Empty).Centered());
         for (var col = 0; col < 8; col++) table.AddColumn(new TableColumn(string.Empty).Centered().NoWrap());
 
-        Piece? selectedChessPiece = null;
+        Pieces? selectedChessPiece = null;
         if (selectedPiece.HasValue)
         {
             var selected = selectedPiece.Value;
@@ -382,7 +518,7 @@ public class Program
                 // Cek apakah koordinat saat ini ada di dalam list availableMoves
                 bool isAvailableMove = availableMoves != null && availableMoves.Exists(m => m.Row == row && m.Column == col);
                 bool isCaptureMove = piece != null ||
-                                     (selectedChessPiece?.Type == PieceType.Pawn &&
+                                     (selectedChessPiece?.Piece == PieceType.Pawn &&
                                       selectedPiece.HasValue &&
                                       selectedPiece.Value.Column != col);
 
@@ -406,10 +542,10 @@ public class Program
             "[bold]e[/]", "[bold]f[/]", "[bold]g[/]", "[bold]h[/]");
         AnsiConsole.Write(new Align(table, HorizontalAlignment.Center));
     }
-    static string GetPieceChar(Piece? piece)
+    static string GetPieceChar(Pieces? piece)
     {
         if (piece is null) return " ";
-        var symbol = piece.Type switch
+        var symbol = piece.Piece switch
         {
             PieceType.King => piece.PieceColor == Color.White ? "♔" : "♚",
             PieceType.Queen => piece.PieceColor == Color.White ? "♕" : "♛",
@@ -470,7 +606,7 @@ public class Program
     {
         var from = ToChessSquare(entry.Move.From);
         var to = ToChessSquare(entry.Move.To);
-        var pieceSymbol = GetPieceChar(new Piece(entry.PieceColor, entry.PieceType));
+        var pieceSymbol = GetPieceChar(new Pieces(entry.PieceColor, entry.PieceType));
 
         if (entry.Move.Type == MoveType.Castling)
         {
@@ -481,7 +617,7 @@ public class Program
             (entry.Move.To.Row == 0 || entry.Move.To.Row == 7))
         {
             var promotedSymbol = GetPieceChar(
-                new Piece(entry.PieceColor, entry.Move.PromotionType));
+                new Pieces(entry.PieceColor, entry.Move.PromotionType));
             return $"{pieceSymbol} {to} [bold green]={promotedSymbol}[/]";
         }
 
@@ -494,7 +630,7 @@ public class Program
                 ? Color.Black
                 : Color.White;
             var capturedSymbol = GetPieceChar(
-                new Piece(capturedColor, entry.CapturedPieceType.Value));
+                new Pieces(capturedColor, entry.CapturedPieceType.Value));
             return $"{pieceSymbol} [red]×[/] {to} [red]({capturedSymbol})[/]";
         }
 
@@ -551,5 +687,32 @@ public class Program
         return safeTime.TotalHours >= 1
             ? safeTime.ToString(@"hh\:mm\:ss")
             : safeTime.ToString(@"mm\:ss");
+    }
+    private static void ConfigureLogging()
+    {
+        Log.Logger = new LoggerConfiguration()
+            .MinimumLevel.Debug()
+            .MinimumLevel.Override(
+                "Microsoft",
+                LogEventLevel.Warning)
+            .Enrich.FromLogContext()
+            .Enrich.WithProperty(
+                "Application",
+                "ChessConsole")
+            .WriteTo.File(
+                path: "logs/chess-.log",
+                restrictedToMinimumLevel: LogEventLevel.Debug,
+                rollingInterval: RollingInterval.Day,
+                retainedFileCountLimit: 14,
+                rollOnFileSizeLimit: true,
+                fileSizeLimitBytes: 10_000_000,
+                shared: true,
+                outputTemplate:
+                "[{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} " +
+                "{Level:u3}] " +
+                "[GameId: {GameId}] " +
+                "[{SourceContext}] " +
+                "{Message:lj}{NewLine}{Exception}")
+            .CreateLogger();
     }
 }

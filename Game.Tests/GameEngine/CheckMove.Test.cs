@@ -1,7 +1,7 @@
 using ChessConsole.Model;
 using ChessConsole.Enums;
 
-namespace Game.Tests;
+namespace Game.Tests.GameEngine;
 
 [TestFixture]
 public class CheckMoveTest
@@ -160,6 +160,6 @@ public class CheckMoveTest
         var board = _game.GetCurrentBoard();
 
         board.Tiles[row * 8 + column].ChessPiece =
-            new Piece(color, pieceType);
+            new Pieces(color, pieceType);
     }
 }
