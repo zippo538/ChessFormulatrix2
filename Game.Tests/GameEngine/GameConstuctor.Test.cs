@@ -4,7 +4,7 @@ using ChessConsole.Model;
 namespace Game.Tests.GameEngine;
 
 [TestFixture]   
-public class GameConstuctorTests
+public class GameConstructorTests
 {
     private Player? _dummyWhite = null;
     private Player? _dummyBlack = null;
@@ -21,7 +21,7 @@ public class GameConstuctorTests
     [TestCase(10, 10)]
     [TestCase(180, 180)]
     [TestCase(200, 180)]
-    public void Constuctor_InitialMinutes_ShouldBeClampedCorrectly(int minutes, int expectedMinutes)
+    public void Constructor_InitialMinutes_ShouldBeClampedCorrectly(int minutes, int expectedMinutes)
     {
         var game = new ChessConsole2.Game(_dummyWhite, _dummyBlack, initialMinutes:minutes);
         var timeStatus = game.CheckTimeStatus();
