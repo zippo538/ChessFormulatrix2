@@ -1,46 +1,44 @@
 using AutoMapper;
-using ChessAPI.Controllers;
-using ChessConsole.Model;
-using ChessWeb.DTO;
+using ChessFormulatrix.WebAPI.Controllers;
+using ChessFormulatrix.WebAPI.DTO;
 using Microsoft.AspNetCore.Mvc;
 using Moq;
-using NUnit.Framework;
 
-namespace Game.Tests.Controllers;
+namespace ChessFormulatrix.Tests.Controllers;
 
 public class ChessControllerTest
 {
      private Mock<IMapper> _mapperMock = null!;
     private ChessController _controller = null!;
 
-    private BoardDTO _boardDto = null!;
-    private List<PosititionDTO> _validMovesDto = null!;
-    private List<MoveHistoryDTO> _historyDto = null!;
-    private MoveDTO _suggestionDto = null!;
+    private BoardDto _boardDto = null!;
+    private List<PosititionDto> _validMovesDto = null!;
+    private List<MoveHistoryDto> _historyDto = null!;
+    private MoveDto _suggestionDto = null!;
 
     [SetUp]
     public void SetUp()
     {
         _mapperMock = new Mock<IMapper>();
 
-        _boardDto = new BoardDTO();
+        _boardDto = new BoardDto();
 
-        _validMovesDto = new List<PosititionDTO>
-        {
+        _validMovesDto =
+        [
             new() { Row = 2, Column = 0 },
             new() { Row = 3, Column = 0 }
-        };
+        ];
 
-        _historyDto = new List<MoveHistoryDTO>();
+        _historyDto = [];
 
-        _suggestionDto = new MoveDTO
+        _suggestionDto = new MoveDto
         {
-            From = new PosititionDTO
+            From = new PosititionDto
             {
                 Row = 0,
                 Column = 1
             },
-            To = new PosititionDTO
+            To = new PosititionDto
             {
                 Row = 2,
                 Column = 2
@@ -48,21 +46,21 @@ public class ChessControllerTest
         };
 
         _mapperMock
-            .Setup(mapper => mapper.Map<BoardDTO>(It.IsAny<object>()))
+            .Setup(mapper => mapper.Map<BoardDto>(It.IsAny<object>()))
             .Returns(_boardDto);
 
         _mapperMock
             .Setup(mapper =>
-                mapper.Map<List<PosititionDTO>>(It.IsAny<object>()))
+                mapper.Map<List<PosititionDto>>(It.IsAny<object>()))
             .Returns(_validMovesDto);
 
         _mapperMock
-            .Setup(mapper => mapper.Map<MoveDTO>(It.IsAny<object>()))
+            .Setup(mapper => mapper.Map<MoveDto>(It.IsAny<object>()))
             .Returns(_suggestionDto);
 
         _mapperMock
             .Setup(mapper =>
-                mapper.Map<List<MoveHistoryDTO>>(It.IsAny<object>()))
+                mapper.Map<List<MoveHistoryDto>>(It.IsAny<object>()))
             .Returns(_historyDto);
 
         _controller = new ChessController(_mapperMock.Object);
@@ -75,7 +73,7 @@ public class ChessControllerTest
     [Test]
     public void CreateGame_WithValidRequest_ReturnsOkAndGameId()
     {
-        var request = new CreateGameDTO
+        var request = new CreateGameDto
         {
             WhiteName = "Player One",
             BlackName = "Player Two",
@@ -84,7 +82,7 @@ public class ChessControllerTest
             ClockEnabled = false
         };
 
-        var result = _controller.CreateGame(request);
+        IActionResult result = _controller.CreateGame(request);
 
         var okResult = result as OkObjectResult;
 
@@ -110,7 +108,7 @@ public class ChessControllerTest
         int requestedMinutes,
         int expectedMinutes)
     {
-        var request = new CreateGameDTO
+        var request = new CreateGameDto
         {
             WhiteName = "White",
             BlackName = "Black",
@@ -159,7 +157,7 @@ public class ChessControllerTest
         Assert.That(okResult!.Value, Is.SameAs(_boardDto));
 
         _mapperMock.Verify(
-            mapper => mapper.Map<BoardDTO>(It.IsAny<object>()),
+            mapper => mapper.Map<BoardDto>(It.IsAny<object>()),
             Times.Once);
     }
 
@@ -200,7 +198,7 @@ public class ChessControllerTest
         Assert.That(okResult!.Value, Is.SameAs(_validMovesDto));
 
         _mapperMock.Verify(
-            mapper => mapper.Map<List<PosititionDTO>>(
+            mapper => mapper.Map<List<PosititionDto>>(
                 It.IsAny<object>()),
             Times.Once);
     }
@@ -398,7 +396,7 @@ public class ChessControllerTest
         Assert.That(okResult!.Value, Is.SameAs(_suggestionDto));
 
         _mapperMock.Verify(
-            mapper => mapper.Map<MoveDTO>(It.IsAny<object>()),
+            mapper => mapper.Map<MoveDto>(It.IsAny<object>()),
             Times.Once);
     }
 
@@ -580,7 +578,7 @@ public class ChessControllerTest
         Assert.That(okResult!.Value, Is.SameAs(_historyDto));
 
         _mapperMock.Verify(
-            mapper => mapper.Map<List<MoveHistoryDTO>>(
+            mapper => mapper.Map<List<MoveHistoryDto>>(
                 It.IsAny<object>()),
             Times.Once);
     }
@@ -594,7 +592,7 @@ public class ChessControllerTest
         int minutes = 10,
         bool clockEnabled = false)
     {
-        var request = new CreateGameDTO
+        var request = new CreateGameDto
         {
             WhiteName = "White Player",
             BlackName = "Black Player",
@@ -617,21 +615,21 @@ public class ChessControllerTest
             "GameId");
     }
 
-    private static MoveDTO CreateMove(
+    private static MoveDto CreateMove(
         int fromRow,
         int fromColumn,
         int toRow,
         int toColumn,
         string? promotionType = null)
     {
-        return new MoveDTO
+        return new MoveDto
         {
-            From = new PosititionDTO
+            From = new PosititionDto
             {
                 Row = fromRow,
                 Column = fromColumn
             },
-            To = new PosititionDTO
+            To = new PosititionDto
             {
                 Row = toRow,
                 Column = toColumn

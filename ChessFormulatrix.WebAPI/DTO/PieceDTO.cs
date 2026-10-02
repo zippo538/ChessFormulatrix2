@@ -1,5 +1,4 @@
-using ChessConsole.Enums;
-namespace ChessWeb.DTO;
+namespace ChessFormulatrix.WebAPI.DTO;
 
 public class PieceDto
 {

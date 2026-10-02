@@ -1,10 +1,10 @@
 using Timer = System.Timers.Timer;
 
-namespace ChessConsole;
+namespace ChessFormularix.Console;
 
 public class ChessTimer
 {
-    Timer _timer;
+    readonly Timer _timer;
     public TimeSpan RemainingTime { get; private set; }
     public event Action? OnTimeOut;
     public event Action? OnTimerTick;
@@ -14,18 +14,10 @@ public class ChessTimer
         RemainingTime = initialTime;
         _timer = new Timer(1000);
         _timer.AutoReset = true;
-        _timer.Elapsed += (s, e) => OnTick();
+        _timer.Elapsed += (_, _) => OnTick();
     }
 
-    public void ResetTimer(TimeSpan time)
-    {
-        RemainingTime = time;
-    }
 
-    public void StartTimer()
-    {
-        _timer.Start();
-    }
 
     public void StopTimer()
     {

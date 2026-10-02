@@ -1,12 +1,11 @@
-using ChessConsole;
-using ChessConsole.Enums;
-using ChessConsole.Helper;
-using ChessConsole.Interface;
-using ChessConsole.Model;
 using System.Diagnostics;
+using ChessFormularix.Console.Enums;
+using ChessFormularix.Console.Helper;
+using ChessFormularix.Console.Interface;
+using ChessFormularix.Console.Model;
 using Serilog;
 
-namespace ChessConsole2;
+namespace ChessFormularix.Console;
 
 public class Game : IGame
 {
@@ -20,7 +19,7 @@ public class Game : IGame
     private Postition _selectedPostition;
     private List<Postition>? _availableMoves;
     private Move _lastMove;
-    private readonly List<MoveHistory> _moveHistory = new();
+    private readonly List<MoveHistory> _moveHistory = [];
     private readonly object _clockSync = new();
     private readonly TimeSpan _initialPlayerTime;
     private readonly bool _clockEnabled;
@@ -34,7 +33,7 @@ public class Game : IGame
     public GameOverResult GameResult;
 
 
-    public bool VsBot { get; private set; }
+    public bool VsBot { get; }
 
     public Game(
         Player? whitePlayer,
@@ -189,8 +188,8 @@ public class Game : IGame
                 move.To.Column);
             return false;
         }
-        
-        var legalMoves = GetLegalMoves(move.From);
+
+        List<Postition> legalMoves = GetLegalMoves(move.From);
 
         if (_selectedPiece == null ||
             _availableMoves == null ||
@@ -231,9 +230,9 @@ public class Game : IGame
             return false;
         }
 
-        var movedPieceType = _selectedPiece.Piece;
-        var movedPieceColor = _selectedPiece.PieceColor;
-        var capturedPieceType = toTile.ChessPiece?.Piece;
+        PieceType movedPieceType = _selectedPiece.Piece;
+        Color movedPieceColor = _selectedPiece.PieceColor;
+        PieceType? capturedPieceType = toTile.ChessPiece?.Piece;
 
         var isEnPassant =
             movedPieceType == PieceType.Pawn &&
@@ -297,10 +296,10 @@ public class Game : IGame
 
     private void SwitchTurn()
     {
-        
-        var timeStatus = CheckTimeStatus();
+
+        (TimeSpan WhiteRemaining, TimeSpan BlackRemaining, bool IsExpired, Color? TimedOutColor) timeStatus = CheckTimeStatus();
         if (timeStatus.IsExpired) return;
-        var previousPlayer = CurrentPlayer.PlayerColor;
+        Color previousPlayer = CurrentPlayer.PlayerColor;
 
         lock (_clockSync)
         {
@@ -342,7 +341,7 @@ public class Game : IGame
     {
         if (!_clockEnabled || !_clockRunning) return;
 
-        var elapsed = now - _turnStartedAt;
+        TimeSpan elapsed = now - _turnStartedAt;
         if (elapsed <= TimeSpan.Zero) return;
 
         if (CurrentPlayer == WhitePlayer)
@@ -421,10 +420,10 @@ public class Game : IGame
 
     public void CheckMoveResult()
     {
-        var opponent = (CurrentPlayer == WhitePlayer) ? BlackPlayer! : WhitePlayer!;
-        var opponentColor = opponent.PlayerColor;
-        var legalMoves = GetAllLegalMoves(opponentColor);
-        var kingInCheck = IsKingInCheck(opponentColor);
+        Player opponent = (CurrentPlayer == WhitePlayer) ? BlackPlayer! : WhitePlayer!;
+        Color opponentColor = opponent.PlayerColor;
+        List<Postition> legalMoves = GetAllLegalMoves(opponentColor);
+        bool kingInCheck = IsKingInCheck(opponentColor);
 
         if (kingInCheck)
         {
@@ -478,14 +477,14 @@ public class Game : IGame
         {
             if (move.To.Column > move.From.Column)
             {
-                var rook = _board.Tiles[move.From.Row * 8 + 7].ChessPiece;
+                Pieces? rook = _board.Tiles[move.From.Row * 8 + 7].ChessPiece;
                 _board.Tiles[move.From.Row * 8 + 5].ChessPiece = rook;
                 _board.Tiles[move.From.Row * 8 + 7].ChessPiece = null;
                 if (rook != null) rook.HasMoved = true;
             }
             else
             {
-                var rook = _board.Tiles[move.From.Row * 8 + 0].ChessPiece;
+                Pieces? rook = _board.Tiles[move.From.Row * 8 + 0].ChessPiece;
                 _board.Tiles[move.From.Row * 8 + 3].ChessPiece = rook;
                 _board.Tiles[move.From.Row * 8 + 0].ChessPiece = null;
                 if (rook != null) rook.HasMoved = true;
@@ -498,9 +497,11 @@ public class Game : IGame
         if (_selectedPiece?.Piece != PieceType.Pawn) return;
         if (move.To.Row == 0 || move.To.Row == 7)
         {
-            var promotionType = NormalizePromotionType(move.PromotionType);
-            var promotedPiece = new Pieces(_selectedPiece.PieceColor, promotionType);
-            promotedPiece.HasMoved = true;
+            PieceType promotionType = NormalizePromotionType(move.PromotionType);
+            var promotedPiece = new Pieces(_selectedPiece.PieceColor, promotionType)
+            {
+                HasMoved = true
+            };
             _board.Tiles[move.To.Row * 8 + move.To.Column].ChessPiece = promotedPiece;
         }
     }
@@ -514,10 +515,10 @@ public class Game : IGame
     {
         int[][] directions = pieces.Piece switch
         {
-            PieceType.Rook => new[] { new[] { -1, 0 }, new[] { 1, 0 }, new[] { 0, -1 }, new[] { 0, 1 } },
-            PieceType.Bishop => new[] { new[] { -1, -1 }, new[] { -1, 1 }, new[] { 1, -1 }, new[] { 1, 1 } },
-            PieceType.Queen => new[] { new[] { -1, 0 }, new[] { 1, 0 }, new[] { 0, -1 }, new[] { 0, 1 }, new[] { -1, -1 }, new[] { -1, 1 }, new[] { 1, -1 }, new[] { 1, 1 } },
-            _ => Array.Empty<int[]>()
+            PieceType.Rook => [[-1, 0], [1, 0], [0, -1], [0, 1]],
+            PieceType.Bishop => [[-1, -1 ], [-1, 1 ], [1, -1 ], [1, 1 ]],
+            PieceType.Queen => [[-1, 0 ], [1, 0 ], [0, -1 ], [0, 1 ], [-1, -1 ], [-1, 1 ], [1, -1 ], [1, 1 ]],
+            _ => []
         };
 
         foreach (var dir in directions)
@@ -528,7 +529,7 @@ public class Game : IGame
                 int c = position.Column + dir[1] * i;
                 if (r < 0 || r >= 8 || c < 0 || c >= 8) break;
 
-                var tile = _board.Tiles[r * 8 + c];
+                Tile tile = _board.Tiles[r * 8 + c];
                 if (tile.ChessPiece == null)
                 {
                     moves.Add(new Postition { Row = r, Column = c });
@@ -549,20 +550,20 @@ public class Game : IGame
         int startRow = pieces.PieceColor == Color.White ? 1 : 6;
 
         int r1 = position.Row + dir;
-        if (r1 >= 0 && r1 < 8 && _board.Tiles[r1 * 8 + position.Column].ChessPiece == null)
+        if (r1 is >= 0 and < 8 && _board.Tiles[r1 * 8 + position.Column].ChessPiece == null)
         {
-            moves.Add(new Postition { Row = r1, Column = position.Column });
+            moves.Add(position with { Row = r1 });
             int r2 = position.Row + dir * 2;
             if (position.Row == startRow && _board.Tiles[r2 * 8 + position.Column].ChessPiece == null)
-                moves.Add(new Postition { Row = r2, Column = position.Column });
+                moves.Add(position with { Row = r2 });
         }
 
         for (int dc = -1; dc <= 1; dc += 2)
         {
             int c = position.Column + dc;
-            if (r1 >= 0 && r1 < 8 && c >= 0 && c < 8)
+            if (r1 is >= 0 and < 8 && c is >= 0 and < 8)
             {
-                var tile = _board.Tiles[r1 * 8 + c];
+                Tile tile = _board.Tiles[r1 * 8 + c];
                 if (tile.ChessPiece != null && tile.ChessPiece.PieceColor != pieces.PieceColor)
                     moves.Add(new Postition { Row = r1, Column = c });
             }
@@ -573,18 +574,18 @@ public class Game : IGame
     {
         int[][] offsets = pieces.Piece switch
         {
-            PieceType.Knight => new[]
-            {
-                new[] { -2, -1 }, new[] { -2, 1 }, new[] { -1, -2 }, new[] { -1, 2 },
-                new[] { 1, -2 }, new[] { 1, 2 }, new[] { 2, -1 }, new[] { 2, 1 }
-            },
-            PieceType.King => new[]
-            {
-                new[] { -1, -1 }, new[] { -1, 0 }, new[] { -1, 1 },
-                new[] { 0, -1 }, new[] { 0, 1 },
-                new[] { 1, -1 }, new[] { 1, 0 }, new[] { 1, 1 }
-            },
-            _ => Array.Empty<int[]>()
+            PieceType.Knight =>
+            [
+                [-2, -1], [-2, 1], [-1, -2], [-1, 2],
+                [1, -2], [1, 2], [2, -1], [2, 1]
+            ],
+            PieceType.King =>
+            [
+                [-1, -1], [-1, 0], [-1, 1],
+                [0, -1], [0, 1],
+                [1, -1], [1, 0], [1, 1]
+            ],
+            _ => []
         };
 
         foreach (var offset in offsets)
@@ -593,7 +594,7 @@ public class Game : IGame
             int c = position.Column + offset[1];
             if (r < 0 || r >= 8 || c < 0 || c >= 8) continue;
 
-            var tile = _board.Tiles[r * 8 + c];
+            Tile tile = _board.Tiles[r * 8 + c];
             if (tile.ChessPiece == null || tile.ChessPiece.PieceColor != pieces.PieceColor)
                 moves.Add(new Postition { Row = r, Column = c });
         }
@@ -601,7 +602,7 @@ public class Game : IGame
 
     bool CanAttack(Postition from, Postition to, Color attackerColor)
     {
-        var piece = _board.Tiles[from.Row * 8 + from.Column].ChessPiece;
+        Pieces? piece = _board.Tiles[from.Row * 8 + from.Column].ChessPiece;
         if (piece == null || piece.PieceColor != attackerColor) return false;
 
         if (piece.Piece == PieceType.Pawn)
@@ -632,17 +633,17 @@ public class Game : IGame
     {
         if (!IsInsideBoard(piecePosition)) return null;
 
-        var tile = _board.Tiles[piecePosition.Row * 8 + piecePosition.Column];
+        Tile tile = _board.Tiles[piecePosition.Row * 8 + piecePosition.Column];
         if (tile.ChessPiece == null || tile.ChessPiece.PieceColor != CurrentPlayer.PlayerColor)
             return null;
 
-        var legalMoves = GetLegalMoves(piecePosition);
+        List<Postition> legalMoves = GetLegalMoves(piecePosition);
         if (legalMoves.Count == 0) return null;
 
         Move? bestMove = null;
         int bestScore = CurrentPlayer.PlayerColor == Color.White ? int.MinValue : int.MaxValue;
 
-        foreach (var targetPosition in legalMoves)
+        foreach (Postition targetPosition in legalMoves)
         {
             var candidate = new Move
             {
@@ -679,7 +680,7 @@ public class Game : IGame
 
     bool IsKingInCheck(Color kingColor)
     {
-        var kingPosition = GetKingPosition(kingColor);
+        Postition kingPosition = GetKingPosition(kingColor);
         return !IsInsideBoard(kingPosition) || IsSquareAttacked(kingPosition, kingColor);
     }
 
@@ -688,7 +689,7 @@ public class Game : IGame
         var moves = new List<Postition>();
         if (!IsInsideBoard(position)) return moves;
 
-        var piece = _board.Tiles[position.Row * 8 + position.Column].ChessPiece;
+        Pieces? piece = _board.Tiles[position.Row * 8 + position.Column].ChessPiece;
         if (piece == null) return moves;
 
         switch (piece.Piece)
@@ -717,21 +718,20 @@ public class Game : IGame
     
     List<Postition> GetLegalMoves(Postition position)
     {
-        if (!IsInsideBoard(position)) return new List<Postition>();
+        if (!IsInsideBoard(position)) return [];
 
-        var piece = _board.Tiles[position.Row * 8 + position.Column].ChessPiece;
-        if (piece == null) return new List<Postition>();
+        Pieces? piece = _board.Tiles[position.Row * 8 + position.Column].ChessPiece;
+        if (piece == null) return [];
 
-        return GetPseudoLegalMoves(position)
+        return [.. GetPseudoLegalMoves(position)
             .Where(target =>
             {
-                var targetPiece = _board.Tiles[target.Row * 8 + target.Column].ChessPiece;
+                Pieces? targetPiece = _board.Tiles[target.Row * 8 + target.Column].ChessPiece;
                 return targetPiece?.Piece != PieceType.King &&
                        IsMoveLegal(position, target, piece.PieceColor);
             })
             .GroupBy(target => (target.Row, target.Column))
-            .Select(group => group.First())
-            .ToList();
+            .Select(group => group.First())];
     }
 
     private bool IsMoveLegal(Postition from, Postition to, Color movingColor)
@@ -760,7 +760,7 @@ public class Game : IGame
 
     List<Postition> GetAllLegalMoves(Color color)
     {
-        return GetAllLegalMoveObjects(color).Select(move => move.To).ToList();
+        return [.. GetAllLegalMoveObjects(color).Select(move => move.To)];
     }
 
     private List<Move> GetAllLegalMoveObjects(Color color)
@@ -771,10 +771,10 @@ public class Game : IGame
             for (int column = 0; column < 8; column++)
             {
                 var from = new Postition { Row = row, Column = column };
-                var piece = _board.Tiles[row * 8 + column].ChessPiece;
+                Pieces? piece = _board.Tiles[row * 8 + column].ChessPiece;
                 if (piece == null || piece.PieceColor != color) continue;
 
-                foreach (var to in GetLegalMoves(from))
+                foreach (Postition to in GetLegalMoves(from))
                 {
                     moves.Add(new Move
                     {
@@ -801,9 +801,9 @@ public class Game : IGame
 
     private void ApplyMoveForSimulation(Move move)
     {
-        var fromTile = _board.Tiles[move.From.Row * 8 + move.From.Column];
-        var toTile = _board.Tiles[move.To.Row * 8 + move.To.Column];
-        var piece = fromTile.ChessPiece;
+        Tile fromTile = _board.Tiles[move.From.Row * 8 + move.From.Column];
+        Tile toTile = _board.Tiles[move.To.Row * 8 + move.To.Column];
+        Pieces? piece = fromTile.ChessPiece;
         if (piece == null) return;
 
         bool isEnPassant = piece.Piece == PieceType.Pawn &&
@@ -818,7 +818,7 @@ public class Game : IGame
         {
             int rookFromColumn = move.To.Column > move.From.Column ? 7 : 0;
             int rookToColumn = move.To.Column > move.From.Column ? 5 : 3;
-            var rook = _board.Tiles[move.From.Row * 8 + rookFromColumn].ChessPiece;
+            Pieces? rook = _board.Tiles[move.From.Row * 8 + rookFromColumn].ChessPiece;
             _board.Tiles[move.From.Row * 8 + rookToColumn].ChessPiece = rook;
             _board.Tiles[move.From.Row * 8 + rookFromColumn].ChessPiece = null;
             if (rook != null) rook.HasMoved = true;
@@ -830,8 +830,10 @@ public class Game : IGame
 
         if (piece.Piece == PieceType.Pawn && (move.To.Row == 0 || move.To.Row == 7))
         {
-            var promotedPiece = new Pieces(piece.PieceColor, NormalizePromotionType(move.PromotionType));
-            promotedPiece.HasMoved = true;
+            var promotedPiece = new Pieces(piece.PieceColor, NormalizePromotionType(move.PromotionType))
+            {
+                HasMoved = true
+            };
             toTile.ChessPiece = promotedPiece;
         }
     }
@@ -845,8 +847,8 @@ public class Game : IGame
         
         
         int row = kingPos.Row;
-        var kingSideRook = _board.Tiles[row * 8 + 7].ChessPiece;
-        if (kingSideRook != null && kingSideRook.Piece == PieceType.Rook &&
+        Pieces? kingSideRook = _board.Tiles[row * 8 + 7].ChessPiece;
+        if (kingSideRook is { Piece: PieceType.Rook } &&
             kingSideRook.PieceColor == king.PieceColor && !kingSideRook.HasMoved)
         {
             if (_board.Tiles[row * 8 + 5].ChessPiece == null &&
@@ -859,8 +861,8 @@ public class Game : IGame
                 }
             }
         }
-        var queenSideRook = _board.Tiles[row * 8 + 0].ChessPiece;
-        if (queenSideRook != null && queenSideRook.Piece == PieceType.Rook &&
+        Pieces? queenSideRook = _board.Tiles[row * 8 + 0].ChessPiece;
+        if (queenSideRook is { Piece: PieceType.Rook } &&
             queenSideRook.PieceColor == king.PieceColor && !queenSideRook.HasMoved)
         {
             if (_board.Tiles[row * 8 + 1].ChessPiece == null &&
@@ -879,12 +881,12 @@ public class Game : IGame
 
     private bool IsSquareAttacked(Postition targetPos, Color defendingColor)
     {
-        var attackerColor = (defendingColor == Color.White) ? Color.Black : Color.White;
+        Color attackerColor = (defendingColor == Color.White) ? Color.Black : Color.White;
         for (int r = 0; r < 8; r++)
         {
             for (int c = 0; c < 8; c++)
             {
-                var piece = _board.Tiles[r * 8 + c].ChessPiece;
+                Pieces? piece = _board.Tiles[r * 8 + c].ChessPiece;
                 if (piece != null && piece.PieceColor == attackerColor)
                 {
                     if (piece.Piece == PieceType.Pawn)
@@ -913,7 +915,7 @@ public class Game : IGame
         var moves = new List<Postition>();
         if (_lastMove.Equals(default(Move))) return moves;
 
-        var pawn = _board.Tiles[pawnPos.Row * 8 + pawnPos.Column].ChessPiece;
+        Pieces? pawn = _board.Tiles[pawnPos.Row * 8 + pawnPos.Column].ChessPiece;
         if (pawn == null || pawn.Piece != PieceType.Pawn) return moves;
 
         int requiredPawnRow = pawn.PieceColor == Color.White ? 4 : 3;
@@ -923,10 +925,9 @@ public class Game : IGame
 
         if (lastMoveRowDiff == 2)
         {
-            var lastMovedPiece = _board.Tiles[_lastMove.To.Row * 8 + _lastMove.To.Column].ChessPiece;
+            Pieces? lastMovedPiece = _board.Tiles[_lastMove.To.Row * 8 + _lastMove.To.Column].ChessPiece;
 
-            if (lastMovedPiece != null &&
-                lastMovedPiece.Piece == PieceType.Pawn &&
+            if (lastMovedPiece is { Piece: PieceType.Pawn } &&
                 lastMovedPiece.PieceColor != pawn.PieceColor &&
                 _lastMove.From.Column == _lastMove.To.Column &&
                 _lastMove.From.Row == (lastMovedPiece.PieceColor == Color.White ? 1 : 6))
@@ -937,7 +938,7 @@ public class Game : IGame
                     int captureRow = pawn.PieceColor == Color.White ? pawnPos.Row + 1 : pawnPos.Row - 1;
                     int captureCol = _lastMove.To.Column;
 
-                    if (captureRow >= 0 && captureRow < 8 && captureCol >= 0 && captureCol < 8 &&
+                    if (captureRow is >= 0 and < 8 && captureCol is >= 0 and < 8 &&
                         _board.Tiles[captureRow * 8 + captureCol].ChessPiece == null)
                     {
                         moves.Add(new Postition { Row = captureRow, Column = captureCol });
@@ -952,7 +953,7 @@ public class Game : IGame
 
     public MoveResult GetMoveResult()
     {
-        var opponent = (CurrentPlayer == WhitePlayer) ? BlackPlayer : WhitePlayer;
+        Player? opponent = (CurrentPlayer == WhitePlayer) ? BlackPlayer : WhitePlayer;
         if (IsKingInCheck(opponent!.PlayerColor))
         {
             if (GetAllLegalMoves(opponent.PlayerColor).Count == 0)
@@ -972,8 +973,8 @@ public class Game : IGame
         {
             for (int c = 0; c < 8; c++)
             {
-                var piece = _board.Tiles[r * 8 + c].ChessPiece;
-                if (piece != null && piece.Piece == PieceType.King && piece.PieceColor == kingColor)
+                Pieces? piece = _board.Tiles[r * 8 + c].ChessPiece;
+                if (piece is { Piece: PieceType.King } && piece.PieceColor == kingColor)
                 {
                     return new Postition { Row = r, Column = c };
                 }
@@ -990,7 +991,7 @@ public class Game : IGame
 
         if (!IsInsideBoard(position)) return;
 
-        var tile = _board.Tiles[position.Row * 8 + position.Column];
+        Tile tile = _board.Tiles[position.Row * 8 + position.Column];
         if (tile.ChessPiece != null && tile.ChessPiece.PieceColor == CurrentPlayer.PlayerColor)
         {
             _selectedPiece = tile.ChessPiece;
@@ -1003,30 +1004,15 @@ public class Game : IGame
     
     public List<Postition> GetAvailableMovesForSelectedPiece()
     {
-        return _availableMoves ?? new List<Postition>();
+        return _availableMoves ?? [];
     }
     public bool TrySelectPiece(Postition position)
     {
         SelectPiece(position);
         return _selectedPiece != null;
     }
-    
-    public void SelectPieceAndGetSuggestion(Postition postition)
-    {
-        TrySelectPiece(postition); 
-    
-        if (_selectedPiece != null)
-        {
-            Move? suggestedMove = GetSuggestedMoveForPiece(_selectedPostition);
-            
-            if (suggestedMove.HasValue)
-            {
-                Console.WriteLine($"Saran Langkah: Ke baris {suggestedMove.Value.To.Row}, kolom {suggestedMove.Value.To.Column}");
-            }
-        }
-    }
-    private static bool IsInsideBoard(Postition position) =>  position.Row >= 0 && 
-                                                              position.Row < 8 && position.Column >= 0 && position.Column < 8;
+
+    private static bool IsInsideBoard(Postition position) => position.Row is >= 0 and < 8 && position.Column is >= 0 and < 8;
 
     private void ClearSelection()
     {
@@ -1039,7 +1025,7 @@ public class Game : IGame
         int score = 0;
         for (int i = 0; i < 64; i++)
         {
-            var piece = board.Tiles[i].ChessPiece;
+            Pieces? piece = board.Tiles[i].ChessPiece;
             if (piece != null)
             {
                 int pieceValue = piece.Piece switch
@@ -1064,7 +1050,7 @@ public class Game : IGame
 
     private int Negamax(Color colorToMove, int depth, int alpha, int beta)
     {
-        var legalMoves = GetAllLegalMoveObjects(colorToMove);
+        List<Move> legalMoves = GetAllLegalMoveObjects(colorToMove);
         if (legalMoves.Count == 0)
             return IsKingInCheck(colorToMove) ? -100000 - depth : 0;
 
@@ -1075,7 +1061,7 @@ public class Game : IGame
         }
 
         int best = int.MinValue;
-        foreach (var move in legalMoves)
+        foreach (Move move in legalMoves)
         {
             Board originalBoard = _board;
             Move originalLastMove = _lastMove;
@@ -1104,7 +1090,7 @@ public class Game : IGame
     public Move? GetBestMove(Color color, int depth = DefaultBotDepth)
     {
         depth = Math.Clamp(depth, 1, 4);
-        var legalMoves = GetAllLegalMoveObjects(color);
+        List<Move> legalMoves = GetAllLegalMoveObjects(color);
         if (legalMoves.Count == 0) return null;
 
         Move? bestMove = null;
@@ -1112,7 +1098,7 @@ public class Game : IGame
         int alpha = int.MinValue;
         int beta = int.MaxValue;
 
-        foreach (var move in legalMoves)
+        foreach (Move move in legalMoves)
         {
             Board originalBoard = _board;
             Move originalLastMove = _lastMove;
@@ -1150,9 +1136,9 @@ public class Game : IGame
             return null;
         }
 
-        var color = CurrentPlayer.PlayerColor;
+        Color color = CurrentPlayer.PlayerColor;
         var safeDepth = Math.Clamp(depth, 1, 4);
-        var bestMove = GetBestMove(color, depth);
+        Move? bestMove = GetBestMove(color, depth);
         var stopwatch = Stopwatch.StartNew();
         
         _logger.Information(

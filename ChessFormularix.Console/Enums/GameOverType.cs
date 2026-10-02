@@ -1,4 +1,4 @@
-namespace ChessConsole.Enums;
+namespace ChessFormularix.Console.Enums;
 
 public enum GameOverType
 {

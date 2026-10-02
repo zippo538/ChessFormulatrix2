@@ -1,7 +1,7 @@
-using ChessConsole.Enums;
-using ChessConsole.Model;
+using ChessFormularix.Console.Enums;
+using ChessFormularix.Console.Model;
 
-namespace Game.Tests.GameEngine;
+namespace ChessFormulatrix.Tests.GameEngine;
 
 [TestFixture]   
 public class GameConstructorTests
@@ -23,7 +23,7 @@ public class GameConstructorTests
     [TestCase(200, 180)]
     public void Constructor_InitialMinutes_ShouldBeClampedCorrectly(int minutes, int expectedMinutes)
     {
-        var game = new ChessConsole2.Game(_dummyWhite, _dummyBlack, initialMinutes:minutes);
+        var game = new ChessFormularix.Console.Game(_dummyWhite, _dummyBlack, initialMinutes:minutes);
         var timeStatus = game.CheckTimeStatus();
         
         Assert.That(timeStatus.WhiteRemaining, Is.EqualTo(TimeSpan.FromMinutes(expectedMinutes)));
@@ -33,7 +33,7 @@ public class GameConstructorTests
     [Test]
     public void Constructor_DefaultParameters_ShouldInitalizedCorrectly()
     {
-        var game = new ChessConsole2.Game(_dummyWhite, _dummyBlack);
+        var game = new ChessFormularix.Console.Game(_dummyWhite, _dummyBlack);
         
         Assert.That(game.WhitePlayer, Is.EqualTo(_dummyWhite));
         Assert.That(game.BlackPlayer, Is.EqualTo(_dummyBlack));
@@ -53,7 +53,7 @@ public class GameConstructorTests
     {
         Player? invalidWhitePlayer = null;
         
-        var exception = Assert.Throws<ArgumentNullException>(()=> new ChessConsole2.Game(invalidWhitePlayer, _dummyBlack));
+        var exception = Assert.Throws<ArgumentNullException>(()=> new ChessFormularix.Console.Game(invalidWhitePlayer, _dummyBlack));
         
         Assert.That(exception.ParamName, Is.EqualTo("WhitePlayer"));
         
@@ -63,7 +63,7 @@ public class GameConstructorTests
     {
         Player? invalidBlackPlayer = null;
         
-        var exception = Assert.Throws<ArgumentNullException>(()=> new ChessConsole2.Game(_dummyWhite, invalidBlackPlayer));
+        var exception = Assert.Throws<ArgumentNullException>(()=> new ChessFormularix.Console.Game(_dummyWhite, invalidBlackPlayer));
         
         Assert.That(exception.ParamName, Is.EqualTo("BlackPlayer"));
     }

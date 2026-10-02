@@ -1,11 +1,11 @@
-using ChessConsole.Model;
-using ChessConsole.Enums;
+using ChessFormularix.Console.Enums;
+using ChessFormularix.Console.Model;
 
-namespace Game.Tests.Helper;
+namespace ChessFormulatrix.Tests.Helper;
 
 public class PieceGameHelper
 {
-    public static void Move(ChessConsole2.Game game, int fromRow, int fromColumn, int toRow, int toColumn)
+    public static void Move(ChessFormularix.Console.Game game, int fromRow, int fromColumn, int toRow, int toColumn)
     {
         var from = new Postition { Row = fromRow, Column = fromColumn };
         var to = new Postition { Row = toRow, Column = toColumn };

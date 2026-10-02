@@ -1,7 +1,7 @@
-using ChessConsole.Interface;
-using ChessConsole.Enums;
+using ChessFormularix.Console.Enums;
+using ChessFormularix.Console.Interface;
 
-namespace Game.Tests.GameEngine;
+namespace ChessFormulatrix.Tests.GameEngine;
 
 [TestFixture]
 public class PieceTest
@@ -54,21 +54,13 @@ public class PieceTest
     }
 }
 
-public sealed class DummyPiece : IPiece
+public sealed class DummyPiece(
+    Color pieceColor,
+    PieceType type,
+    bool hasMoved = false) : IPiece
 {
-    public Color PieceColor { get; }
-    public PieceType Piece { get; }
+    public Color PieceColor { get; } = pieceColor;
+    public PieceType Piece { get; } = type;
 
-
-    public bool HasMoved { get; set; }
-
-    public DummyPiece(
-        Color pieceColor,
-        PieceType type,
-        bool hasMoved = false)
-    {
-        PieceColor = pieceColor;
-        Piece = type;
-        HasMoved = hasMoved;
-    }
+    public bool HasMoved { get; set; } = hasMoved;
 }

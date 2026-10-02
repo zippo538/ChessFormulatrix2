@@ -1,7 +1,7 @@
-using ChessConsole.Interface;
-using ChessConsole.Model;
+using ChessFormularix.Console.Interface;
+using ChessFormularix.Console.Model;
 
-namespace ChessConsole.Helper;
+namespace ChessFormularix.Console.Helper;
 
 public class BoardHelper
 {

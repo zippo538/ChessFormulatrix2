@@ -1,16 +1,10 @@
-using ChessConsole.Enums;
-using ChessConsole.Interface;
+using ChessFormularix.Console.Enums;
+using ChessFormularix.Console.Interface;
 
-namespace ChessConsole.Model;
+namespace ChessFormularix.Console.Model;
 
-public class Player : IPlayer
+public class Player(string name, Color color) : IPlayer
 {
-    public string Name { get; set; }
-    public Color PlayerColor { get; }
-
-    public Player(string name, Color color)
-    {
-        Name = name;
-        PlayerColor = color;
-    }
+    public string Name { get; set; } = name;
+    public Color PlayerColor { get; } = color;
 }

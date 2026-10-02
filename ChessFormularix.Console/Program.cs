@@ -1,13 +1,12 @@
-using Spectre.Console;
-using Spectre.Console.Rendering;
-using ChessConsole.Enums;
-using ChessConsole.Model;
-using ChessConsole2;
+using ChessFormularix.Console.Enums;
+using ChessFormularix.Console.Model;
 using Serilog;
 using Serilog.Events;
-using Color = ChessConsole.Enums.Color;
+using Spectre.Console;
+using Spectre.Console.Rendering;
+using Color = ChessFormularix.Console.Enums.Color;
 
-namespace ChessConsole;
+namespace ChessFormularix.Console;
 
 public class Program
 {
@@ -42,7 +41,7 @@ public class Program
     }
      private static void RunGame()
     {
-        Console.OutputEncoding =
+        System.Console.OutputEncoding =
             System.Text.Encoding.UTF8;
 
         ShowTitle();
@@ -61,7 +60,7 @@ public class Program
 
         var gameId = Guid.NewGuid().ToString();
 
-        var gameLogger = Log.Logger
+        ILogger gameLogger = Log.Logger
             .ForContext<Game>()
             .ForContext("GameId", gameId);
 
@@ -102,7 +101,7 @@ public class Program
         {
             DrawScreen(game);
 
-            var from = AskPieceOption(game);
+            Postition? from = AskPieceOption(game);
 
             if (from is null)
             {
@@ -118,7 +117,7 @@ public class Program
                 break;
             }
 
-            var fromPosition = from.Value;
+            Postition fromPosition = from.Value;
 
             if (!game.TrySelectPiece(fromPosition))
             {
@@ -135,7 +134,7 @@ public class Program
                 continue;
             }
 
-            var availableMoves =
+            List<Postition> availableMoves =
                 game.GetAvailableMovesForSelectedPiece();
 
             DrawScreen(
@@ -143,7 +142,7 @@ public class Program
                 fromPosition,
                 availableMoves);
 
-            var to = AskMoveOption(
+            Postition? to = AskMoveOption(
                 game.GetCurrentBoard(),
                 fromPosition,
                 availableMoves);
@@ -159,20 +158,19 @@ public class Program
                 continue;
             }
 
-            var toPosition = to.Value;
+            Postition toPosition = to.Value;
 
-            var movingPiece = game
+            Pieces? movingPiece = game
                 .GetCurrentBoard()
                 .Tiles[
                     fromPosition.Row * 8 +
                     fromPosition.Column]
                 .ChessPiece;
 
-            var promotionType = PieceType.Queen;
+            PieceType promotionType = PieceType.Queen;
 
-            var isPawnPromotion =
-                movingPiece != null &&
-                movingPiece.Piece == PieceType.Pawn &&
+            bool isPawnPromotion =
+                movingPiece is { Piece: PieceType.Pawn } &&
                 (toPosition.Row == 0 ||
                  toPosition.Row == 7) &&
                 availableMoves.Exists(move =>
@@ -235,40 +233,41 @@ public class Program
         string displayColorPlayer = playerColor switch
         {
             Color.White => "[bold white] White [/]",
-            Color.Black => "[bold grey] Black [/]", 
-            _ => throw new ArgumentOutOfRangeException()
+            Color.Black => "[bold grey] Black [/]",
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(game), game.CurrentPlayer.PlayerColor, null)
         };
     
         AnsiConsole.Write(new Rule("[bold yellow]CHESS CONSOLE[/]").RuleStyle("yellow"));
-    
+
         // 1. Ambil objek visual (IRenderable) dari papan dan tabel
-        var boardView = CreateBoardRenderable(game.GetCurrentBoard(), selectedPiece, availableMoves);
-        var lastMoveView = CreateLastMoveTable(game.GetMoveHistory());
+        IRenderable boardView = CreateBoardRenderable(game.GetCurrentBoard(), selectedPiece, availableMoves);
+        IRenderable lastMoveView = CreateLastMoveTable(game.GetMoveHistory());
     
         // 2. Gabungkan secara horizontal menggunakan Columns
         AnsiConsole.Write(new Columns(boardView, lastMoveView));
     
         AnsiConsole.MarkupLine($"\nGiliran: [bold cyan]{Markup.Escape(game.CurrentPlayer.Name)}[/] ({displayColorPlayer})");
 
-        if (availableMoves != null && availableMoves.Count > 0)
+        if (availableMoves is { Count: > 0 })
         {
             AnsiConsole.MarkupLine($"[green]Terdapat {availableMoves.Count} langkah sah.[/]");
         }
-        else if (availableMoves != null && availableMoves.Count == 0)
+        else if (availableMoves is { Count: 0 })
         {
             AnsiConsole.MarkupLine("[red]Bidak ini tidak bisa bergerak kemana-mana![/]");
         }
     }
     private static IRenderable CreateBoardRenderable(Board board, Postition? selectedPiece = null, List<Postition>? availableMoves = null)
     {
-        var table = new Table().NoBorder().HideHeaders().Collapse();
+        Table table = new Table().NoBorder().HideHeaders().Collapse();
         table.AddColumn(new TableColumn(string.Empty).Centered());
         for (var col = 0; col < 8; col++) table.AddColumn(new TableColumn(string.Empty).Centered().NoWrap());
 
         Pieces? selectedChessPiece = null;
         if (selectedPiece.HasValue)
         {
-            var selected = selectedPiece.Value;
+            Postition selected = selectedPiece.Value;
             selectedChessPiece = board.Tiles[selected.Row * 8 + selected.Column].ChessPiece;
         }
 
@@ -277,10 +276,10 @@ public class Program
             var cells = new List<string> { $"[bold]{row + 1}[/]" };
             for (var col = 0; col < 8; col++)
             {
-                var piece = board.Tiles[row * 8 + col].ChessPiece;
+                Pieces? piece = board.Tiles[row * 8 + col].ChessPiece;
                 var background = (row + col) % 2 == 0 ? "grey84" : "grey37";
 
-                bool isAvailableMove = availableMoves != null && availableMoves.Exists(m => m.Row == row && m.Column == col);
+                bool isAvailableMove = availableMoves is { Count: > 0 } && availableMoves.Exists(m => m.Row == row && m.Column == col);
                 bool isCaptureMove = piece != null || (selectedChessPiece?.Piece == PieceType.Pawn && selectedPiece.HasValue && selectedPiece.Value.Column != col);
 
                 if (selectedPiece.HasValue && selectedPiece.Value.Row == row && selectedPiece.Value.Column == col)
@@ -294,7 +293,7 @@ public class Program
 
                 cells.Add($"[on {background}] {GetPieceChar(piece!)} [/]");
             }
-            table.AddRow(cells.ToArray());
+            _ = table.AddRow([.. cells]);
         }
 
         table.AddRow("", "[bold]a[/]", "[bold]b[/]", "[bold]c[/]", "[bold]d[/]", "[bold]e[/]", "[bold]f[/]", "[bold]g[/]", "[bold]h[/]");
@@ -304,9 +303,11 @@ public class Program
     }
     private static IRenderable CreateLastMoveTable(IReadOnlyList<MoveHistory> moveHistory)
     {
-        var table = new Table();
-        table.Border = TableBorder.Rounded;
-        table.Title = new TableTitle("[bold yellow]⚔ Last Move[/]");
+        var table = new Table
+        {
+            Border = TableBorder.Rounded,
+            Title = new TableTitle("[bold yellow]⚔ Last Move[/]")
+        };
 
         table.AddColumn(new TableColumn("[bold yellow]#[/]").Centered());
         table.AddColumn(new TableColumn("[bold white]♔ White[/]").LeftAligned());
@@ -318,7 +319,7 @@ public class Program
             return table;
         }
 
-        var lastMove = moveHistory[moveHistory.Count - 1];
+        MoveHistory lastMove = moveHistory[^1];
         var turnNumber = (moveHistory.Count + 1) / 2;
         var whiteText = "[grey]...[/]";
         var blackText = "[grey]...[/]";
@@ -332,7 +333,7 @@ public class Program
             blackText = FormatMove(lastMove);
             if (moveHistory.Count >= 2)
             {
-                var previousMove = moveHistory[moveHistory.Count - 2];
+                MoveHistory previousMove = moveHistory[^2];
                 if (previousMove.PieceColor == Color.White)
                     whiteText = FormatMove(previousMove);
             }
@@ -367,7 +368,7 @@ public class Program
      private static Postition? AskMoveOption(
         Board board,
         Postition fromPosition,
-        List<Postition> availableMoves)
+        List<Postition>? availableMoves)
     {
         if (availableMoves == null || availableMoves.Count == 0)
         {
@@ -379,16 +380,16 @@ public class Program
         const string backOption = "[grey]← Pilih bidak lain[/]";
         var optionPositions = new Dictionary<string, Postition>();
         var choices = new List<string>();
-        var selectedPiece = board.Tiles[
+        Pieces? selectedPiece = board.Tiles[
             fromPosition.Row * 8 + fromPosition.Column].ChessPiece;
 
-        foreach (var position in availableMoves
+        foreach (Postition position in availableMoves
                      .OrderBy(move => move.Row)
                      .ThenBy(move => move.Column))
         {
             var square = ToChessSquare(position);
-            var targetPiece = board.Tiles[position.Row * 8 + position.Column].ChessPiece;
-            var isCapture = targetPiece != null ||
+            Pieces? targetPiece = board.Tiles[position.Row * 8 + position.Column].ChessPiece;
+            bool isCapture = targetPiece != null ||
                             (selectedPiece?.Piece == PieceType.Pawn &&
                              fromPosition.Column != position.Column);
 
@@ -423,24 +424,12 @@ public class Program
             : optionPositions[selectedOption];
     }
 
-    private static Postition? AskSquare(string label, bool allowCancel)
-    {
-        while (true)
-        {
-            var hint = allowCancel ? "e4, atau back" : "e2";
-            var input = AnsiConsole.Ask<string>($"{label} ([green]{hint}[/]):").Trim();
-            if (input.Equals("quit", StringComparison.OrdinalIgnoreCase)) return null;
-            if (allowCancel && input.Equals("back", StringComparison.OrdinalIgnoreCase)) return null;
-            if (TryParsePosition(input, out var position)) return position;
-            AnsiConsole.MarkupLine("[red]Koordinat tidak valid. Gunakan a1 sampai h8.[/]");
-        }
-    }
     private static Postition? AskPieceOption(Game game)
     {
         const string quitOption = "[red]✕ Keluar dari permainan[/]";
         const string resignOption = "[darkorange]🏳 Menyerah[/]";
-        var board = game.GetCurrentBoard();
-        var currentColor = game.CurrentPlayer.PlayerColor;
+        Board board = game.GetCurrentBoard();
+        Color currentColor = game.CurrentPlayer.PlayerColor;
         var optionPositions = new Dictionary<string, Postition>();
         var choices = new List<string>();
 
@@ -448,7 +437,7 @@ public class Program
         {
             for (var column = 0; column < 8; column++)
             {
-                var piece = board.Tiles[row * 8 + column].ChessPiece;
+                Pieces? piece = board.Tiles[row * 8 + column].ChessPiece;
                 if (piece == null || piece.PieceColor != currentColor)
                     continue;
 
@@ -494,54 +483,6 @@ public class Program
     }
 
 
-    private static void RenderBoard(Board board, Postition? selectedPiece = null, List<Postition>? availableMoves = null)
-    {
-        var table = new Table().NoBorder().HideHeaders().Collapse();
-        table.AddColumn(new TableColumn(string.Empty).Centered());
-        for (var col = 0; col < 8; col++) table.AddColumn(new TableColumn(string.Empty).Centered().NoWrap());
-
-        Pieces? selectedChessPiece = null;
-        if (selectedPiece.HasValue)
-        {
-            var selected = selectedPiece.Value;
-            selectedChessPiece = board.Tiles[selected.Row * 8 + selected.Column].ChessPiece;
-        }
-
-        for (var row = 7; row >= 0; row--)
-        {
-            var cells = new List<string> { $"[bold]{row + 1}[/]" };
-            for (var col = 0; col < 8; col++)
-            {
-                var piece = board.Tiles[row * 8 + col].ChessPiece;
-                var background = (row + col) % 2 == 0 ? "grey84" : "grey37";
-
-                // Cek apakah koordinat saat ini ada di dalam list availableMoves
-                bool isAvailableMove = availableMoves != null && availableMoves.Exists(m => m.Row == row && m.Column == col);
-                bool isCaptureMove = piece != null ||
-                                     (selectedChessPiece?.Piece == PieceType.Pawn &&
-                                      selectedPiece.HasValue &&
-                                      selectedPiece.Value.Column != col);
-
-                // Biru: bidak terpilih, hijau: langkah ke tile kosong,
-                // merah: langkah yang akan memakan bidak lawan.
-                if (selectedPiece.HasValue && selectedPiece.Value.Row == row && selectedPiece.Value.Column == col)
-                {
-                    background = "blue"; 
-                }
-                else if (isAvailableMove)
-                {
-                    background = isCaptureMove ? "red" : "green";
-                }
-
-                cells.Add($"[on {background}] {GetPieceChar(piece!)} [/]");
-            }
-            table.AddRow(cells.ToArray());
-        }
-
-        table.AddRow("", "[bold]a[/]", "[bold]b[/]", "[bold]c[/]", "[bold]d[/]",
-            "[bold]e[/]", "[bold]f[/]", "[bold]g[/]", "[bold]h[/]");
-        AnsiConsole.Write(new Align(table, HorizontalAlignment.Center));
-    }
     static string GetPieceChar(Pieces? piece)
     {
         if (piece is null) return " ";
@@ -558,53 +499,10 @@ public class Program
         return piece.PieceColor == Color.White ? $"[bold white]{symbol}[/]" : $"[bold black]{symbol}[/]";
     }
 
-    
-    private static void DrawLastMoveTable(IReadOnlyList<MoveHistory> moveHistory)
-    {
-        var table = new Table();
-        table.Border = TableBorder.Rounded;
-        table.Title = new TableTitle("[bold yellow]⚔ Last Move[/]");
 
-        table.AddColumn(new TableColumn("[bold yellow]#[/]").Centered());
-        table.AddColumn(new TableColumn("[bold white]♔ White[/]").LeftAligned());
-        table.AddColumn(new TableColumn("[bold grey]♚ Black[/]").LeftAligned());
-
-        if (moveHistory.Count == 0)
-        {
-            table.AddRow(
-                "[grey]-[/]",
-                "[grey]Belum ada pergerakan[/]",
-                "[grey]Belum ada pergerakan[/]");
-            AnsiConsole.Write(table);
-            return;
-        }
-
-        var lastMove = moveHistory[moveHistory.Count - 1];
-        var turnNumber = (moveHistory.Count + 1) / 2;
-        var whiteText = "[grey]...[/]";
-        var blackText = "[grey]...[/]";
-
-        if (lastMove.PieceColor == Color.White)
-        {
-            whiteText = FormatMove(lastMove);
-        }
-        else
-        {
-            blackText = FormatMove(lastMove);
-            if (moveHistory.Count >= 2)
-            {
-                var previousMove = moveHistory[moveHistory.Count - 2];
-                if (previousMove.PieceColor == Color.White)
-                    whiteText = FormatMove(previousMove);
-            }
-        }
-
-        table.AddRow($"[bold yellow]{turnNumber}.[/]", whiteText, blackText);
-        AnsiConsole.Write(table);
-    }
     private static string FormatMove(MoveHistory entry)
     {
-        var from = ToChessSquare(entry.Move.From);
+        _ = ToChessSquare(entry.Move.From);
         var to = ToChessSquare(entry.Move.To);
         var pieceSymbol = GetPieceChar(new Pieces(entry.PieceColor, entry.PieceType));
 
@@ -643,17 +541,6 @@ public class Program
     }
 
 
-    private static bool TryParsePosition(string input, out Postition position)
-    {
-        position = new Postition { Row = -1, Column = -1 };
-        input = input.Trim().ToLowerInvariant();
-        if (input.Length != 2) return false;
-        var col = input[0] - 'a';
-        var row = input[1] - '1';
-        if (col is < 0 or > 7 || row is < 0 or > 7) return false;
-        position = new Postition { Row = row, Column = col };
-        return true;
-    }
     private static PieceType AskPromotionPiece()
     {
         var selectedPiece = AnsiConsole.Prompt(
@@ -677,13 +564,13 @@ public class Program
         var blackTime = FormatTime(game.BlackTimer.RemainingTime);
         var currentPlayerName = game.CurrentPlayer?.Name ?? "-";
 
-        Console.Title =
+        System.Console.Title =
             $"Chess Console | Putih {whiteTime} | Hitam {blackTime} | Giliran: {currentPlayerName}";
     }
 
     private static string FormatTime(TimeSpan time)
     {
-        var safeTime = time < TimeSpan.Zero ? TimeSpan.Zero : time;
+        TimeSpan safeTime = time < TimeSpan.Zero ? TimeSpan.Zero : time;
         return safeTime.TotalHours >= 1
             ? safeTime.ToString(@"hh\:mm\:ss")
             : safeTime.ToString(@"mm\:ss");

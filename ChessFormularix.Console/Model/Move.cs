@@ -1,6 +1,6 @@
-using ChessConsole.Enums;
+using ChessFormularix.Console.Enums;
 
-namespace ChessConsole.Model;
+namespace ChessFormularix.Console.Model;
 
 public record struct Move
 {

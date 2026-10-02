@@ -1,10 +1,8 @@
-using System.Reflection;
-using System.Runtime.Serialization;
-using ChessConsole.Enums;
-using ChessConsole.Model;
-using Game.Tests.Helper;
+using ChessFormularix.Console.Enums;
+using ChessFormularix.Console.Model;
+using ChessFormulatrix.Tests.Helper;
 
-namespace Game.Tests.GameEngine;
+namespace ChessFormulatrix.Tests.GameEngine;
 
 [TestFixture]
 [NonParallelizable]
@@ -12,7 +10,7 @@ public class MakeMoveTests
 {
     private Player _whitePlayer = null!;
     private Player _blackPlayer = null!;
-    private ChessConsole2.Game _game = null!;
+    private ChessFormularix.Console.Game _game = null!;
 
     [SetUp]
     public void Setup()
@@ -20,7 +18,7 @@ public class MakeMoveTests
         _whitePlayer = new Player("Mahindra", Color.White);
         _blackPlayer =  new Player("Saputra", Color.Black);
         
-        _game = new ChessConsole2.Game(_whitePlayer, _blackPlayer,vsBot:true);
+        _game = new ChessFormularix.Console.Game(_whitePlayer, _blackPlayer,vsBot:true);
         _game.StartGame();
     }
     [Test]

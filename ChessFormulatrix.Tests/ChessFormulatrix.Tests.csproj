@@ -7,7 +7,7 @@
 
         <IsPackable>false</IsPackable>
         <IsTestProject>true</IsTestProject>
-        <RootNamespace>Game.Tests</RootNamespace>
+        <RootNamespace>ChessFormulatrix.Tests</RootNamespace>
     </PropertyGroup>
 
     <ItemGroup>

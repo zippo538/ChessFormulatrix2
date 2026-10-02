@@ -1,11 +1,9 @@
-using ChessConsole;
-using ChessConsole.Interface;
-using ChessConsole.Enums;
-using ChessConsole.Model;
-using NUnit.Framework;
+using ChessFormularix.Console.Enums;
+using ChessFormularix.Console.Interface;
+using ChessFormularix.Console.Model;
 using Moq;
 
-namespace Game.Tests.GameEngine;
+namespace ChessFormulatrix.Tests.GameEngine;
 
 
 public class GameTests

@@ -1,12 +1,12 @@
-namespace ChessConsole.Model;
+namespace ChessFormularix.Console.Model;
 
 public class Board
 {
-    private const int DEFAULT_SIZE = 64;
+    private const int _defaultSize = 64;
     public Tile[] Tiles { get; set; }
     public int Size { get; }
 
-    public Board(int size = DEFAULT_SIZE)
+    public Board(int size = _defaultSize)
     {
         if (size <= 0) throw new ArgumentOutOfRangeException(nameof(size));
         Size = size;

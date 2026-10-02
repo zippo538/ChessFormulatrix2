@@ -1,7 +1,6 @@
-using ChessConsole.Model;
-namespace ChessWeb.DTO;
+namespace ChessFormulatrix.WebAPI.DTO;
 
-public class PosititionDTO
+public class PosititionDto
 {
     public int Row { get; set; }
     public int Column { get; set; }

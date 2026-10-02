@@ -1,8 +1,8 @@
-namespace ChessWeb.DTO;
+namespace ChessFormulatrix.WebAPI.DTO;
 
-public class MoveHistoryDTO
+public class MoveHistoryDto
 {
-    public MoveDTO Move { get; set; } = null!;
+    public MoveDto Move { get; set; } = null!;
     public string PieceType { get; set; } = string.Empty;
     public string PieceColor { get; set; } = string.Empty;
     public string? CapturedPieceType { get; set; }   

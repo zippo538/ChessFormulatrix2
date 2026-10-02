@@ -1,23 +1,15 @@
-using ChessConsole.Enums;
+using ChessFormularix.Console.Enums;
 
-namespace ChessConsole.Model;
+namespace ChessFormularix.Console.Model;
 
-public class MoveHistory
+public class MoveHistory(
+    Move move,
+    PieceType pieceType,
+    Color pieceColor,
+    PieceType? capturedPieceType)
 {
-    public Move Move { get; }
-    public PieceType PieceType { get; }
-    public Color PieceColor { get; }
-    public PieceType? CapturedPieceType { get; }
-
-    public MoveHistory(
-        Move move,
-        PieceType pieceType,
-        Color pieceColor,
-        PieceType? capturedPieceType)
-    {
-        Move = move;
-        PieceType = pieceType;
-        PieceColor = pieceColor;
-        CapturedPieceType = capturedPieceType;
-    }
+    public Move Move { get; } = move;
+    public PieceType PieceType { get; } = pieceType;
+    public Color PieceColor { get; } = pieceColor;
+    public PieceType? CapturedPieceType { get; } = capturedPieceType;
 }

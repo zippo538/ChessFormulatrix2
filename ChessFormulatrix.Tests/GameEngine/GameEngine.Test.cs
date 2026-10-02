@@ -1,14 +1,14 @@
-using ChessConsole.Enums;
-using ChessConsole.Model;
+using ChessFormularix.Console.Enums;
+using ChessFormularix.Console.Model;
 
-namespace Game.Tests.GameEngine;
+namespace ChessFormulatrix.Tests.GameEngine;
 
 [TestFixture]
 public class GameEngineTest
 {
     private Player _whitePlayer = null!;
     private Player _blackPlayer = null!;
-    private ChessConsole2.Game _game = null!;
+    private ChessFormularix.Console.Game _game = null!;
 
     [SetUp]
     public void Setup()
@@ -16,7 +16,7 @@ public class GameEngineTest
         _whitePlayer = new Player("Mahindra", Color.White);
         _blackPlayer =  new Player("Saputra", Color.Black);
         
-        _game = new ChessConsole2.Game(_whitePlayer, _blackPlayer,vsBot:true);
+        _game = new ChessFormularix.Console.Game(_whitePlayer, _blackPlayer,vsBot:true);
         _game.StartGame();
     }
         [Test]

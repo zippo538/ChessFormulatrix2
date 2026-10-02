@@ -1,17 +1,17 @@
 using System.Reflection;
 using System.Runtime.Serialization;
-using ChessConsole.Enums;
-using ChessConsole.Model;
+using ChessFormularix.Console.Enums;
+using ChessFormularix.Console.Model;
 
-namespace Game.Tests.Helper;
+namespace ChessFormulatrix.Tests.Helper;
 
 public class CreateGameHelper
 {
-    public static ChessConsole2.Game CreateStartedGame(bool clockEnabled)
+    public static ChessFormularix.Console.Game CreateStartedGame(bool clockEnabled)
     {
         var white = CreatePlayer(Color.White);
         var black = CreatePlayer(Color.Black);
-        var game = new ChessConsole2.Game(
+        var game = new ChessFormularix.Console.Game(
             white,
             black,
             vsBot: false,
@@ -21,9 +21,9 @@ public class CreateGameHelper
         game.StartGame();
         return game;
     }
-    public static void SetPrivateField<T>(ChessConsole2.Game game, string fieldName, T value)
+    public static void SetPrivateField<T>(ChessFormularix.Console.Game game, string fieldName, T value)
     {
-        var field = typeof(ChessConsole2.Game).GetField(
+        var field = typeof(ChessFormularix.Console.Game).GetField(
             fieldName,
             BindingFlags.Instance | BindingFlags.NonPublic);
 

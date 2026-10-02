@@ -1,4 +1,4 @@
-namespace ChessConsole.Model;
+namespace ChessFormularix.Console.Model;
 
 public class Tile
 {

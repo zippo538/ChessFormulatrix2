@@ -1,45 +1,29 @@
 using System.Collections.Concurrent;
 using AutoMapper;
-using ChessConsole.Enums;
-using ChessConsole.Model;
-using ChessConsole2;
-using ChessWeb.DTO;
+using ChessFormularix.Console;
+using ChessFormularix.Console.Enums;
+using ChessFormularix.Console.Model;
+using ChessFormulatrix.WebAPI.DTO;
 using Microsoft.AspNetCore.Mvc;
 using Serilog;
 
-namespace ChessAPI.Controllers;
+namespace ChessFormulatrix.WebAPI.Controllers;
 [ApiController]
 [Route("api/[controller]")]
-public class ChessController : ControllerBase
+public class ChessController(IMapper mapper) : ControllerBase
 {
-    private static readonly ConcurrentDictionary<string, Game> ActiveGames = new();
-    
-    private readonly IMapper _mapper;
-    private readonly Serilog.ILogger _logger;
+    private static readonly ConcurrentDictionary<string, Game> _activeGames = new();
 
-    public ChessController(IMapper mapper)
-    {
-         _mapper = mapper;
-         _logger = Log.ForContext<ChessController>();
-    }
-    
+    private readonly Serilog.ILogger _logger = Log.ForContext<ChessController>();
+
     private Serilog.ILogger ForGame(string gameId) =>
         _logger.ForContext("GameId", gameId);
 
-    private bool TryGetGame(string gameId, out Game game)
-    {
-        if (ActiveGames.TryGetValue(gameId, out game!))
-            return true;
-
-        ForGame(gameId).Warning("Chess game session was not found");
-        return false;
-    }
-
     [HttpPost]
-    public IActionResult CreateGame([FromBody] CreateGameDTO request)
+    public IActionResult CreateGame([FromBody] CreateGameDto request)
     {
         var gameId = Guid.NewGuid().ToString();
-        var gameLogger = ForGame(gameId);
+        Serilog.ILogger gameLogger = ForGame(gameId);
         try
         {
             var whiteName = string.IsNullOrWhiteSpace(request.WhiteName) ? "Anda" : request.WhiteName;
@@ -62,7 +46,7 @@ public class ChessController : ControllerBase
                 gameId: gameId);
             game.StartGame();
 
-            if (!ActiveGames.TryAdd(gameId, game))
+            if (!_activeGames.TryAdd(gameId, game))
             {
                 gameLogger.Error("Failed to register chess game session in active game storage");
                 return StatusCode(500, "Gagal membuat sesi permainan.");
@@ -94,13 +78,13 @@ public class ChessController : ControllerBase
     }
 
     [HttpGet("{gameId}/board")]
-    public ActionResult<BoardDTO> GetBoard(string gameId)
+    public ActionResult<BoardDto> GetBoard(string gameId)
     {
-        if (!ActiveGames.TryGetValue(gameId, out var game))
+        if (!_activeGames.TryGetValue(gameId, out Game? game))
             return NotFound("Game session not found.");
 
-        var board = game.GetCurrentBoard();
-        var boardDto = _mapper.Map<BoardDTO>(board);
+        Board board = game.GetCurrentBoard();
+        BoardDto boardDto = mapper.Map<BoardDto>(board);
         ForGame(gameId).Debug("Current chess board returned");
 
         return Ok(boardDto);
@@ -108,18 +92,18 @@ public class ChessController : ControllerBase
 
 
     [HttpGet("{gameId}/valid-moves")]
-    public ActionResult<List<PosititionDTO>> GetValidMoves(string gameId, [FromQuery] int row, [FromQuery] int col)
+    public ActionResult<List<PosititionDto>> GetValidMoves(string gameId, [FromQuery] int row, [FromQuery] int col)
     {
-        if (!ActiveGames.TryGetValue(gameId, out var game))
+        if (!_activeGames.TryGetValue(gameId, out Game? game))
             return NotFound("Game session not found.");
 
-        var gameLogger = ForGame(gameId);
+        Serilog.ILogger gameLogger = ForGame(gameId);
         var position = new Postition { Row = row, Column = col };
 
         if (game.TrySelectPiece(position))
         {
-            var moves = game.GetAvailableMovesForSelectedPiece();
-            var movesDto = _mapper.Map<List<PosititionDTO>>(moves);
+            List<Postition> moves = game.GetAvailableMovesForSelectedPiece();
+            List<PosititionDto> movesDto = mapper.Map<List<PosititionDto>>(moves);
             gameLogger.Debug(
                 "Valid moves returned for position ({Row}, {Column}). MoveCount: {MoveCount}",
                 row,
@@ -135,16 +119,16 @@ public class ChessController : ControllerBase
     }
 
     [HttpPost("{gameId}/moves")]
-    public IActionResult MakeMove(string gameId, [FromBody] MoveDTO moveDto)
+    public IActionResult MakeMove(string gameId, [FromBody] MoveDto moveDto)
     {
         
-        if (!ActiveGames.TryGetValue(gameId, out var game))
+        if (!_activeGames.TryGetValue(gameId, out Game? game))
             return NotFound("Game session not found.");
-        var gameLogger = ForGame(gameId);
+        Serilog.ILogger gameLogger = ForGame(gameId);
         try
         {
-            
-        var timeStatus = game.CheckTimeStatus();
+
+            (TimeSpan WhiteRemaining, TimeSpan BlackRemaining, bool IsExpired, Color? TimedOutColor) timeStatus = game.CheckTimeStatus();
             if (timeStatus.IsExpired)
             {
                 gameLogger.Warning(
@@ -153,7 +137,7 @@ public class ChessController : ControllerBase
                 return Conflict(new
                 {
                     GameOver = true,
-                    Reason = GameOverType.Timeout.ToString(),
+                    Reason = nameof(GameOverType.Timeout),
                     Winner = game.GameResult.Winner.ToString(),
                     TimedOutPlayer = timeStatus.TimedOutColor?.ToString()
                 });
@@ -189,7 +173,7 @@ public class ChessController : ControllerBase
                 return BadRequest("Invalid selection.");
             }
 
-            var availableMoves = game.GetAvailableMovesForSelectedPiece();
+            List<Postition> availableMoves = game.GetAvailableMovesForSelectedPiece();
 
             if (!availableMoves.Exists(m =>
                     m.Row == toPosition.Row && m.Column == toPosition.Column))
@@ -252,7 +236,7 @@ public class ChessController : ControllerBase
             object? botMoveInfo = null;
             if (game.VsBot && game.GetColorsPlayer() == Color.Black)
             {
-                var botMove = game.MakeBotMove();
+                Move? botMove = game.MakeBotMove();
                 if (botMove.HasValue)
                 {
                     botMoveInfo = new
@@ -309,11 +293,11 @@ public class ChessController : ControllerBase
 
 
     [HttpGet("{gameId}/suggestion")]
-    public ActionResult<MoveDTO> GetSuggestion(string gameId, [FromQuery] int row, [FromQuery] int col)
+    public ActionResult<MoveDto> GetSuggestion(string gameId, [FromQuery] int row, [FromQuery] int col)
     {
-        if (!ActiveGames.TryGetValue(gameId, out var game))
+        if (!_activeGames.TryGetValue(gameId, out Game? game))
             return NotFound("Game session not found.");
-        var gameLogger = ForGame(gameId);
+        Serilog.ILogger gameLogger = ForGame(gameId);
 
         try
         {
@@ -326,7 +310,7 @@ public class ChessController : ControllerBase
 
             if (game.TrySelectPiece(position))
             {
-                var suggestedMove = game.GetSuggestedMoveForPiece(position);
+                Move? suggestedMove = game.GetSuggestedMoveForPiece(position);
 
                 if (suggestedMove.HasValue)
                 {
@@ -337,7 +321,7 @@ public class ChessController : ControllerBase
                         suggestedMove.Value.From.Column,
                         suggestedMove.Value.To.Row,
                         suggestedMove.Value.To.Column);
-                    var suggestionDto = _mapper.Map<MoveDTO>(suggestedMove.Value);
+                    MoveDto suggestionDto = mapper.Map<MoveDto>(suggestedMove.Value);
                     return Ok(suggestionDto);
                 }
             }
@@ -362,9 +346,9 @@ public class ChessController : ControllerBase
     [HttpPost("{gameId}/bot-move")]
     public IActionResult MakeBotMove(string gameId, [FromQuery] int depth = Game.DefaultBotDepth)
     {
-        if (!ActiveGames.TryGetValue(gameId, out var game))
+        if (!_activeGames.TryGetValue(gameId, out Game? game))
             return NotFound("Game session not found.");
-        var gameLogger = ForGame(gameId);
+        Serilog.ILogger gameLogger = ForGame(gameId);
 
         if (game.GameResult.Type != GameOverType.None)
         {
@@ -380,7 +364,7 @@ public class ChessController : ControllerBase
             return BadRequest("Game ini adalah mode player vs player, tidak ada Bot untuk dijalankan.");
         }
 
-        var timeStatus = game.CheckTimeStatus();
+        (TimeSpan WhiteRemaining, TimeSpan BlackRemaining, bool IsExpired, Color? TimedOutColor) timeStatus = game.CheckTimeStatus();
         if (timeStatus.IsExpired)
         {
             gameLogger.Warning(
@@ -389,14 +373,14 @@ public class ChessController : ControllerBase
             return Conflict(new
             {
                 GameOver = true,
-                Reason = GameOverType.Timeout.ToString(),
+                Reason = nameof(GameOverType.Timeout),
                 Winner = game.GameResult.Winner.ToString(),
                 TimedOutPlayer = timeStatus.TimedOutColor?.ToString()
             });
         }
 
         var safeDepth = Math.Clamp(depth, 1, 4);
-        var botColor = game.CurrentPlayer.PlayerColor;
+        Color botColor = game.CurrentPlayer.PlayerColor;
         gameLogger.Debug(
             "Manual bot move requested. RequestedDepth: {RequestedDepth}, SafeDepth: {SafeDepth}, " +
             "BotColor: {BotColor}",
@@ -406,7 +390,7 @@ public class ChessController : ControllerBase
 
         try
         {
-            var botMove = game.MakeBotMove(safeDepth);
+            Move? botMove = game.MakeBotMove(safeDepth);
             if (botMove == null)
             {
                 gameLogger.Warning("Bot did not return an available move");
@@ -465,11 +449,11 @@ public class ChessController : ControllerBase
     [HttpGet("{gameId}/time-status")]
     public IActionResult GetTimeStatus(string gameId)
     {
-        if (!ActiveGames.TryGetValue(gameId, out var game))
+        if (!_activeGames.TryGetValue(gameId, out Game? game))
             return NotFound("Game session not found.");
-        
 
-        var status = game.CheckTimeStatus();
+
+        (TimeSpan WhiteRemaining, TimeSpan BlackRemaining, bool IsExpired, Color? TimedOutColor) status = game.CheckTimeStatus();
         ForGame(gameId).Debug(
             "Time status returned. CurrentTurn: {CurrentTurn}, TimeExpired: {TimeExpired}, " +
             "WhiteRemainingSeconds: {WhiteRemainingSeconds}, BlackRemainingSeconds: {BlackRemainingSeconds}",
@@ -495,10 +479,10 @@ public class ChessController : ControllerBase
     [HttpPost("{gameId}/resign")]
     public IActionResult Resign(string gameId)
     {
-        if (!ActiveGames.TryGetValue(gameId, out var game))
+        if (!_activeGames.TryGetValue(gameId, out Game? game))
             return NotFound("Game session not found.");
 
-        var resignedPlayer = game.CurrentPlayer.PlayerColor;
+        Color resignedPlayer = game.CurrentPlayer.PlayerColor;
         game.Resign(game.CurrentPlayer);
         
         ForGame(gameId).Information(
@@ -514,13 +498,13 @@ public class ChessController : ControllerBase
     }
 
     [HttpGet("{gameId}/history")]
-    public ActionResult<List<MoveHistoryDTO>> GetMoveHistory(string gameId)
+    public ActionResult<List<MoveHistoryDto>> GetMoveHistory(string gameId)
     {
-        if (!ActiveGames.TryGetValue(gameId, out var game))
+        if (!_activeGames.TryGetValue(gameId, out Game? game))
             return NotFound("Game session not found.");
 
-        var history = game.GetMoveHistory();
-        var historyDto = _mapper.Map<List<MoveHistoryDTO>>(history);
+        IReadOnlyList<MoveHistory> history = game.GetMoveHistory();
+        List<MoveHistoryDto> historyDto = mapper.Map<List<MoveHistoryDto>>(history);
         ForGame(gameId).Debug(
             "Move history returned. MoveCount: {MoveCount}",
             history.Count);

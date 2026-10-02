@@ -1,18 +1,11 @@
-using ChessConsole.Enums;
-using ChessConsole.Interface;
+using ChessFormularix.Console.Enums;
+using ChessFormularix.Console.Interface;
 
-namespace ChessConsole.Model;
+namespace ChessFormularix.Console.Model;
 
-public class Pieces : IPiece
+public class Pieces(Color pieceColor, PieceType piece) : IPiece
 {
-    public Color PieceColor { get; }
-    public PieceType Piece { get; }
-    public bool HasMoved { get; set; }
-
-    public Pieces(Color pieceColor, PieceType piece)
-    {
-        PieceColor = pieceColor;
-        Piece = piece;
-        HasMoved = false;
-    }
+    public Color PieceColor { get; } = pieceColor;
+    public PieceType Piece { get; } = piece;
+    public bool HasMoved { get; set; } = false;
 }

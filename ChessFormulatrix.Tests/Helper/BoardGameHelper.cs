@@ -1,13 +1,13 @@
-using ChessConsole.Model;
-using ChessConsole.Enums;
+using ChessFormularix.Console.Enums;
+using ChessFormularix.Console.Model;
 
-namespace Game.Tests.Helper;
+namespace ChessFormulatrix.Tests.Helper;
 
 public class BoardGameHelper
 {
     
     
-    public static Board PrepareCleanBoardWithKings(ChessConsole2.Game game)
+    public static Board PrepareCleanBoardWithKings(ChessFormularix.Console.Game game)
     {
         var board = game.GetCurrentBoard();
 

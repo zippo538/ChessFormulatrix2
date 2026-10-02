@@ -1,14 +1,14 @@
-using ChessConsole.Model;
-using ChessConsole.Enums;
+using ChessFormularix.Console.Enums;
+using ChessFormularix.Console.Model;
 
-namespace Game.Tests.GameEngine;
+namespace ChessFormulatrix.Tests.GameEngine;
 
 [TestFixture]
 public class GameTimerTest
 {
     private Player _whitePlayer = null!;
         private Player _blackPlayer = null!;
-        private ChessConsole2.Game _game = null!;
+        private ChessFormularix.Console.Game _game = null!;
 
         [SetUp]
         public void Setup()
@@ -20,7 +20,7 @@ public class GameTimerTest
         [Test]
         public void StartGame_ShouldInitializeTimerWithConfiguredMinutes()
         {
-            _game = new ChessConsole2.Game(_whitePlayer, _blackPlayer, vsBot: false, initialMinutes: 5, clockEnabled: true);
+            _game = new ChessFormularix.Console.Game(_whitePlayer, _blackPlayer, vsBot: false, initialMinutes: 5, clockEnabled: true);
 
             _game.StartGame();
             var timeStatus = _game.CheckTimeStatus();
@@ -34,7 +34,7 @@ public class GameTimerTest
         [Test]
         public void CheckTimeStatus_WhenClockDisabled_ShouldNotDeductTime()
         {
-            _game = new ChessConsole2.Game(_whitePlayer, _blackPlayer, vsBot: false, initialMinutes: 10, clockEnabled: false);
+            _game = new ChessFormularix.Console.Game(_whitePlayer, _blackPlayer, vsBot: false, initialMinutes: 10, clockEnabled: false);
             _game.StartGame();
 
             Thread.Sleep(100);
@@ -47,7 +47,7 @@ public class GameTimerTest
         [Test]
         public void MakeMove_ShouldDeductActivePlayerTimeAfterTurnSwitch()
         {
-            _game = new ChessConsole2.Game(_whitePlayer, _blackPlayer, vsBot: false, initialMinutes: 10, clockEnabled: true);
+            _game = new ChessFormularix.Console.Game(_whitePlayer, _blackPlayer, vsBot: false, initialMinutes: 10, clockEnabled: true);
             _game.StartGame();
 
             Thread.Sleep(150);
@@ -78,7 +78,7 @@ public class GameTimerTest
         [Test]
         public void DeclareTimeout_WhenWhiteTimeOut_ShouldSetWinnerToBlackAndEndGame()
         {
-            _game = new ChessConsole2.Game(_whitePlayer, _blackPlayer, vsBot: false, initialMinutes: 1, clockEnabled: true);
+            _game = new ChessFormularix.Console.Game(_whitePlayer, _blackPlayer, vsBot: false, initialMinutes: 1, clockEnabled: true);
             _game.StartGame();
 
             _game.OnGameOver += () => _ = true;
@@ -94,7 +94,7 @@ public class GameTimerTest
         [Test]
         public void CheckTimeStatus_WhenTimeExpired_ShouldDeclareTimeoutCorrectly()
         {
-            _game = new ChessConsole2.Game(_whitePlayer, _blackPlayer, vsBot: false, initialMinutes: 1, clockEnabled: true);
+            _game = new ChessFormularix.Console.Game(_whitePlayer, _blackPlayer, vsBot: false, initialMinutes: 1, clockEnabled: true);
             _game.StartGame();
 
             var initialStatus = _game.CheckTimeStatus();

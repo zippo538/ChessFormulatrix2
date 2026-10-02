@@ -1,5 +1,9 @@
+.idea
+.claude
+.omc
 bin/
 obj/
 /packages/
+ChessFormulatrix.Console/logs/
 riderModule.iml
 /_ReSharper.Caches/

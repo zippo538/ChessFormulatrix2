@@ -1,7 +1,7 @@
-using ChessConsole.Enums;
-using ChessConsole.Model;
+using ChessFormularix.Console.Enums;
+using ChessFormularix.Console.Model;
 
-namespace ChessConsole.Interface;
+namespace ChessFormularix.Console.Interface;
 
 public interface IGame
 {
@@ -10,7 +10,7 @@ public interface IGame
 
     Color GetCurrentTurn() => Color.White;
     Board GetCurrentBoard() => new();
-    List<Move> GetLegalMoves() => new();
+    List<Move> GetLegalMoves() => [];
     MoveResult GetMoveResult() => new();
     TimeSpan GetWhiteTimer() => TimeSpan.FromSeconds(1);
     TimeSpan GetBlackTimer() => TimeSpan.FromSeconds(1);

@@ -1,6 +1,6 @@
-using ChessConsole.Enums;
+using ChessFormularix.Console.Enums;
 
-namespace ChessConsole;
+namespace ChessFormularix.Console.Model;
 
 public struct GameOverResult
 {

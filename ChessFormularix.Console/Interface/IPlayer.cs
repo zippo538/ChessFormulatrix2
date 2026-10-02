@@ -1,6 +1,6 @@
-using ChessConsole.Enums;
+using ChessFormularix.Console.Enums;
 
-namespace ChessConsole.Interface;
+namespace ChessFormularix.Console.Interface;
 
 public interface IPlayer
 { 

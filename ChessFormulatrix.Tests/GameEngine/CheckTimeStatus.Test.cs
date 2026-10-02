@@ -1,7 +1,7 @@
-using ChessConsole.Enums;
-using Game.Tests.Helper;
+using ChessFormularix.Console.Enums;
+using ChessFormulatrix.Tests.Helper;
 
-namespace Game.Tests.GameEngine;
+namespace ChessFormulatrix.Tests.GameEngine;
 
 
 public class CheckTimeStatusTest
