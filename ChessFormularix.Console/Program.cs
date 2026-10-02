@@ -703,7 +703,7 @@ public class Program
             .Enrich.FromLogContext()
             .Enrich.WithProperty(
                 "Application",
-                "ChessConsole")
+                "ChessFormularix.Console")
             .WriteTo.Console(
                 restrictedToMinimumLevel: LogEventLevel.Warning,
                 outputTemplate: outputTemplate)

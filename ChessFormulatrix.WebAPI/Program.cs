@@ -81,7 +81,7 @@ void ConfigureLogging()
         .Enrich.FromLogContext()
         .Enrich.WithProperty(
             "Application",
-            "ChessAPI")
+            "ChessFormulatrix.WebAPI")
 
         .WriteTo.Console(
             restrictedToMinimumLevel: LogEventLevel.Debug,
