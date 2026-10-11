@@ -9,8 +9,7 @@ const string OutputTemplate =
     "{Message:lj}{NewLine}{Exception}";
 
 // Bootstrap logger: harus di luar try supaya error saat startup pun tercatat.
-Log.Logger = new LoggerCon
-figuration()
+Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Debug()
     .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
     .Enrich.FromLogContext()
