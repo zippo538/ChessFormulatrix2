@@ -1,0 +1,514 @@
+using System.Collections.Concurrent;
+using AutoMapper;
+using ChessFormularix.Console;
+using ChessFormularix.Console.Enums;
+using ChessFormularix.Console.Model;
+using ChessFormulatrix.WebAPI.DTO;
+using Microsoft.AspNetCore.Mvc;
+using Serilog;
+
+namespace ChessFormulatrix.WebAPI.Controllers;
+[ApiController]
+[Route("api/[controller]")]
+public class ChessController(IMapper mapper) : ControllerBase
+{
+    private static readonly ConcurrentDictionary<string, Game> _activeGames = new();
+
+    private readonly Serilog.ILogger _logger = Log.ForContext<ChessController>();
+
+    private Serilog.ILogger ForGame(string gameId) =>
+        _logger.ForContext("GameId", gameId);
+
+    [HttpPost]
+    public IActionResult CreateGame([FromBody] CreateGameDto request)
+    {
+        var gameId = Guid.NewGuid().ToString();
+        Serilog.ILogger gameLogger = ForGame(gameId);
+        try
+        {
+            var whiteName = string.IsNullOrWhiteSpace(request.WhiteName) ? "Anda" : request.WhiteName;
+
+            var whitePlayer = new Player(whiteName, Color.White);
+
+            var blackName = request.VsBot
+                ? "AI Bot"
+                : (string.IsNullOrWhiteSpace(request.BlackName) ? "Pemain Hitam" : request.BlackName);
+            var blackPlayer = new Player(blackName, Color.Black);
+
+            var minutes = Math.Clamp(request.Minutes, 1, 180);
+            var game = new Game(
+                whitePlayer,
+                blackPlayer,
+                request.VsBot,
+                minutes,
+                request.ClockEnabled,
+                logger: gameLogger,
+                gameId: gameId);
+            game.StartGame();
+
+            if (!_activeGames.TryAdd(gameId, game))
+            {
+                gameLogger.Error("Failed to register chess game session in active game storage");
+                return StatusCode(500, "Gagal membuat sesi permainan.");
+            }
+
+            gameLogger.Information(
+                "Chess game created. WhitePlayer: {WhitePlayer}, BlackPlayer: {BlackPlayer}, " +
+                "VsBot: {VsBot}, Minutes: {Minutes}, ClockEnabled: {ClockEnabled}",
+                whiteName,
+                blackName,
+                request.VsBot,
+                minutes,
+                request.ClockEnabled);
+
+            return Ok(new
+            {
+                GameId = gameId,
+                Message = "Game started",
+                request.VsBot,
+                Minutes = minutes,
+                request.ClockEnabled
+            });
+        }
+        catch (Exception exception)
+        {
+            gameLogger.Error(exception, "Unexpected error while creating chess game");
+            return StatusCode(500, "Terjadi kesalahan saat membuat permainan.");
+        }
+    }
+
+    [HttpGet("{gameId}/board")]
+    public ActionResult<BoardDto> GetBoard(string gameId)
+    {
+        if (!_activeGames.TryGetValue(gameId, out Game? game))
+            return NotFound("Game session not found.");
+
+        Board board = game.GetCurrentBoard();
+        BoardDto boardDto = mapper.Map<BoardDto>(board);
+        ForGame(gameId).Debug("Current chess board returned");
+
+        return Ok(boardDto);
+    }
+
+
+    [HttpGet("{gameId}/valid-moves")]
+    public ActionResult<List<PosititionDto>> GetValidMoves(string gameId, [FromQuery] int row, [FromQuery] int col)
+    {
+        if (!_activeGames.TryGetValue(gameId, out Game? game))
+            return NotFound("Game session not found.");
+
+        Serilog.ILogger gameLogger = ForGame(gameId);
+        var position = new Postition { Row = row, Column = col };
+
+        if (game.TrySelectPiece(position))
+        {
+            List<Postition> moves = game.GetAvailableMovesForSelectedPiece();
+            List<PosititionDto> movesDto = mapper.Map<List<PosititionDto>>(moves);
+            gameLogger.Debug(
+                "Valid moves returned for position ({Row}, {Column}). MoveCount: {MoveCount}",
+                row,
+                col,
+                moves.Count);
+            return Ok(movesDto);
+        }
+        gameLogger.Warning(
+            "Valid-move request rejected for position ({Row}, {Column})",
+            row,
+            col);
+        return BadRequest("Tidak ada bidak milik pemain saat ini di koordinat tersebut.");
+    }
+
+    [HttpPost("{gameId}/moves")]
+    public IActionResult MakeMove(string gameId, [FromBody] MoveDto moveDto)
+    {
+        
+        if (!_activeGames.TryGetValue(gameId, out Game? game))
+            return NotFound("Game session not found.");
+        Serilog.ILogger gameLogger = ForGame(gameId);
+        try
+        {
+
+            (TimeSpan WhiteRemaining, TimeSpan BlackRemaining, bool IsExpired, Color? TimedOutColor) timeStatus = game.CheckTimeStatus();
+            if (timeStatus.IsExpired)
+            {
+                gameLogger.Warning(
+                    "Move rejected because game time expired. TimedOutPlayer: {TimedOutPlayer}",
+                    timeStatus.TimedOutColor);
+                return Conflict(new
+                {
+                    GameOver = true,
+                    Reason = nameof(GameOverType.Timeout),
+                    Winner = game.GameResult.Winner.ToString(),
+                    TimedOutPlayer = timeStatus.TimedOutColor?.ToString()
+                });
+            }
+
+            PieceType promotion = PieceType.None;
+            if (!string.IsNullOrEmpty(moveDto.PromotionType) &&
+                !Enum.TryParse(moveDto.PromotionType, out promotion))
+            {
+                gameLogger.Warning(
+                    "Unknown promotion type received; PieceType.None will be used. PromotionType: {PromotionType}",
+                    moveDto.PromotionType);
+            }
+
+            var fromPosition = new Postition { Row = moveDto.From.Row, Column = moveDto.From.Column };
+            var toPosition = new Postition { Row = moveDto.To.Row, Column = moveDto.To.Column };
+
+            gameLogger.Debug(
+                "Move request received. From: ({FromRow}, {FromColumn}), " +
+                "To: ({ToRow}, {ToColumn}), PromotionType: {PromotionType}",
+                fromPosition.Row,
+                fromPosition.Column,
+                toPosition.Row,
+                toPosition.Column,
+                promotion);
+
+            if (!game.TrySelectPiece(fromPosition))
+            {
+                gameLogger.Warning(
+                    "Move rejected because piece selection is invalid. From: ({FromRow}, {FromColumn})",
+                    fromPosition.Row,
+                    fromPosition.Column);
+                return BadRequest("Invalid selection.");
+            }
+
+            List<Postition> availableMoves = game.GetAvailableMovesForSelectedPiece();
+
+            if (!availableMoves.Exists(m =>
+                    m.Row == toPosition.Row && m.Column == toPosition.Column))
+            {
+                gameLogger.Warning(
+                    "Move rejected because destination is illegal. From: ({FromRow}, {FromColumn}), " +
+                    "To: ({ToRow}, {ToColumn})",
+                    fromPosition.Row,
+                    fromPosition.Column,
+                    toPosition.Row,
+                    toPosition.Column);
+                return BadRequest("Illegal move.");
+            }
+
+            var move = new Move
+            {
+                From = fromPosition,
+                To = toPosition,
+                Type = MoveType.Normal,
+                PromotionType = promotion
+            };
+
+            var moveApplied = game.MakeMove(move);
+            if (!moveApplied)
+            {
+                gameLogger.Warning(
+                    "Move rejected by chess engine. From: ({FromRow}, {FromColumn}), " +
+                    "To: ({ToRow}, {ToColumn})",
+                    fromPosition.Row,
+                    fromPosition.Column,
+                    toPosition.Row,
+                    toPosition.Column);
+            }
+            else
+            {
+                gameLogger.Information(
+                    "Player move completed. From: ({FromRow}, {FromColumn}), " +
+                    "To: ({ToRow}, {ToColumn}), PromotionType: {PromotionType}",
+                    fromPosition.Row,
+                    fromPosition.Column,
+                    toPosition.Row,
+                    toPosition.Column,
+                    promotion);
+            }
+
+            if (game.GameResult.Type != GameOverType.None)
+            {
+                gameLogger.Information(
+                    "Chess game ended after player move. Reason: {Reason}, Winner: {Winner}",
+                    game.GameResult.Type,
+                    game.GameResult.Winner);
+                return Ok(new
+                {
+                    GameOver = true,
+                    Reason = game.GameResult.Type.ToString(),
+                    Winner = game.GameResult.Winner.ToString()
+                });
+            }
+
+            object? botMoveInfo = null;
+            if (game.VsBot && game.GetColorsPlayer() == Color.Black)
+            {
+                Move? botMove = game.MakeBotMove();
+                if (botMove.HasValue)
+                {
+                    botMoveInfo = new
+                    {
+                        From = new { row = botMove.Value.From.Row, botMove.Value.From.Column },
+                        To = new { row = botMove.Value.To.Row, botMove.Value.To.Column }
+                    };
+
+                    gameLogger.Information(
+                        "Automatic bot move completed. From: ({FromRow}, {FromColumn}), " +
+                        "To: ({ToRow}, {ToColumn}), Depth: {Depth}",
+                        botMove.Value.From.Row,
+                        botMove.Value.From.Column,
+                        botMove.Value.To.Row,
+                        botMove.Value.To.Column,
+                        Game.DefaultBotDepth);
+                }
+                else
+                {
+                    gameLogger.Warning("Bot did not return a move after player move");
+                }
+            }
+
+            if (game.GameResult.Type != GameOverType.None)
+            {
+                gameLogger.Information(
+                    "Chess game ended after bot move. Reason: {Reason}, Winner: {Winner}",
+                    game.GameResult.Type,
+                    game.GameResult.Winner);
+                return Ok(new
+                {
+                    GameOver = true,
+                    Reason = game.GameResult.Type.ToString(),
+                    Winner = game.GameResult.Winner.ToString(),
+                    BotMove = botMoveInfo
+                });
+            }
+
+            return Ok(new
+            {
+                GameOver = false,
+                CurrentTurn = game.GetColorsPlayer().ToString(),
+                BotMove = botMoveInfo
+            });
+        }
+        catch (Exception exception)
+        {
+            gameLogger.Error(
+                exception,
+                "Unexpected error while processing player move");
+            return StatusCode(500, "Terjadi kesalahan saat memproses langkah.");
+        }
+    }
+
+
+    [HttpGet("{gameId}/suggestion")]
+    public ActionResult<MoveDto> GetSuggestion(string gameId, [FromQuery] int row, [FromQuery] int col)
+    {
+        if (!_activeGames.TryGetValue(gameId, out Game? game))
+            return NotFound("Game session not found.");
+        Serilog.ILogger gameLogger = ForGame(gameId);
+
+        try
+        {
+            var position = new Postition { Row = row, Column = col };
+
+            gameLogger.Debug(
+                "Move suggestion requested for position ({Row}, {Column})",
+                row,
+                col);
+
+            if (game.TrySelectPiece(position))
+            {
+                Move? suggestedMove = game.GetSuggestedMoveForPiece(position);
+
+                if (suggestedMove.HasValue)
+                {
+                    gameLogger.Information(
+                        "Move suggestion generated. From: ({FromRow}, {FromColumn}), " +
+                        "To: ({ToRow}, {ToColumn})",
+                        suggestedMove.Value.From.Row,
+                        suggestedMove.Value.From.Column,
+                        suggestedMove.Value.To.Row,
+                        suggestedMove.Value.To.Column);
+                    MoveDto suggestionDto = mapper.Map<MoveDto>(suggestedMove.Value);
+                    return Ok(suggestionDto);
+                }
+            }
+
+            gameLogger.Warning(
+                "No move suggestion available for position ({Row}, {Column})",
+                row,
+                col);
+            return NotFound("Tidak ada saran langkah.");
+        }
+        catch (Exception exception)
+        {
+            gameLogger.Error(
+                exception,
+                "Unexpected error while generating move suggestion for position ({Row}, {Column})",
+                row,
+                col);
+            return StatusCode(500, "Terjadi kesalahan saat membuat saran langkah.");
+        }
+    }
+
+    [HttpPost("{gameId}/bot-move")]
+    public IActionResult MakeBotMove(string gameId, [FromQuery] int depth = Game.DefaultBotDepth)
+    {
+        if (!_activeGames.TryGetValue(gameId, out Game? game))
+            return NotFound("Game session not found.");
+        Serilog.ILogger gameLogger = ForGame(gameId);
+
+        if (game.GameResult.Type != GameOverType.None)
+        {
+            gameLogger.Warning(
+                "Manual bot move rejected because game has ended. Reason: {Reason}",
+                game.GameResult.Type);
+            return BadRequest("Game sudah berakhir.");
+        }
+
+        if (!game.VsBot)
+        {
+            gameLogger.Warning("Manual bot move rejected because game mode is player versus player");
+            return BadRequest("Game ini adalah mode player vs player, tidak ada Bot untuk dijalankan.");
+        }
+
+        (TimeSpan WhiteRemaining, TimeSpan BlackRemaining, bool IsExpired, Color? TimedOutColor) timeStatus = game.CheckTimeStatus();
+        if (timeStatus.IsExpired)
+        {
+            gameLogger.Warning(
+                "Manual bot move rejected because game time expired. TimedOutPlayer: {TimedOutPlayer}",
+                timeStatus.TimedOutColor);
+            return Conflict(new
+            {
+                GameOver = true,
+                Reason = nameof(GameOverType.Timeout),
+                Winner = game.GameResult.Winner.ToString(),
+                TimedOutPlayer = timeStatus.TimedOutColor?.ToString()
+            });
+        }
+
+        var safeDepth = Math.Clamp(depth, 1, 4);
+        Color botColor = game.CurrentPlayer.PlayerColor;
+        gameLogger.Debug(
+            "Manual bot move requested. RequestedDepth: {RequestedDepth}, SafeDepth: {SafeDepth}, " +
+            "BotColor: {BotColor}",
+            depth,
+            safeDepth,
+            botColor);
+
+        try
+        {
+            Move? botMove = game.MakeBotMove(safeDepth);
+            if (botMove == null)
+            {
+                gameLogger.Warning("Bot did not return an available move");
+                return BadRequest("Bot tidak memiliki langkah yang tersedia.");
+            }
+
+            var moveInfo = new
+            {
+                From = new { row = botMove.Value.From.Row, botMove.Value.From.Column },
+                To = new { row = botMove.Value.To.Row, botMove.Value.To.Column },
+                Color = botColor.ToString()
+            };
+
+            gameLogger.Information(
+                "Manual bot move completed. From: ({FromRow}, {FromColumn}), " +
+                "To: ({ToRow}, {ToColumn}), Color: {BotColor}, Depth: {Depth}",
+                botMove.Value.From.Row,
+                botMove.Value.From.Column,
+                botMove.Value.To.Row,
+                botMove.Value.To.Column,
+                botColor,
+                safeDepth);
+
+            if (game.GameResult.Type != GameOverType.None)
+            {
+                gameLogger.Information(
+                    "Chess game ended after manual bot move. Reason: {Reason}, Winner: {Winner}",
+                    game.GameResult.Type,
+                    game.GameResult.Winner);
+                return Ok(new
+                {
+                    GameOver = true,
+                    Reason = game.GameResult.Type.ToString(),
+                    Winner = game.GameResult.Winner.ToString(),
+                    BotMove = moveInfo
+                });
+            }
+
+            return Ok(new
+            {
+                GameOver = false,
+                CurrentTurn = game.GetColorsPlayer().ToString(),
+                BotMove = moveInfo
+            });
+        }
+        catch (Exception exception)
+        {
+            gameLogger.Error(
+                exception,
+                "Unexpected error while processing manual bot move. Depth: {Depth}",
+                safeDepth);
+            return StatusCode(500, "Terjadi kesalahan saat memproses langkah bot.");
+        }
+    }
+
+    [HttpGet("{gameId}/time-status")]
+    public IActionResult GetTimeStatus(string gameId)
+    {
+        if (!_activeGames.TryGetValue(gameId, out Game? game))
+            return NotFound("Game session not found.");
+
+
+        (TimeSpan WhiteRemaining, TimeSpan BlackRemaining, bool IsExpired, Color? TimedOutColor) status = game.CheckTimeStatus();
+        ForGame(gameId).Debug(
+            "Time status returned. CurrentTurn: {CurrentTurn}, TimeExpired: {TimeExpired}, " +
+            "WhiteRemainingSeconds: {WhiteRemainingSeconds}, BlackRemainingSeconds: {BlackRemainingSeconds}",
+            game.GetColorsPlayer(),
+            status.IsExpired,
+            Math.Max(0, Math.Ceiling(status.WhiteRemaining.TotalSeconds)),
+            Math.Max(0, Math.Ceiling(status.BlackRemaining.TotalSeconds)));
+        return Ok(new
+        {
+            WhiteRemainingSeconds = Math.Max(0, Math.Ceiling(status.WhiteRemaining.TotalSeconds)),
+            BlackRemainingSeconds = Math.Max(0, Math.Ceiling(status.BlackRemaining.TotalSeconds)),
+            CurrentTurn = game.GetColorsPlayer().ToString(),
+            TimeExpired = status.IsExpired,
+            TimedOutPlayer = status.TimedOutColor?.ToString(),
+            GameOver = game.GameResult.Type != GameOverType.None,
+            Reason = game.GameResult.Type.ToString(),
+            Winner = game.GameResult.Type == GameOverType.None
+                ? null
+                : game.GameResult.Winner.ToString()
+        });
+    }
+
+    [HttpPost("{gameId}/resign")]
+    public IActionResult Resign(string gameId)
+    {
+        if (!_activeGames.TryGetValue(gameId, out Game? game))
+            return NotFound("Game session not found.");
+
+        Color resignedPlayer = game.CurrentPlayer.PlayerColor;
+        game.Resign(game.CurrentPlayer);
+        
+        ForGame(gameId).Information(
+            "Player resigned through API. ResignedPlayer: {ResignedPlayer}, Winner: {Winner}",
+            resignedPlayer,
+            game.GameResult.Winner);
+        return Ok(new 
+        { 
+            GameOver = true, 
+            Reason = game.GameResult.Type.ToString(), 
+            Winner = game.GameResult.Winner.ToString() 
+        });
+    }
+
+    [HttpGet("{gameId}/history")]
+    public ActionResult<List<MoveHistoryDto>> GetMoveHistory(string gameId)
+    {
+        if (!_activeGames.TryGetValue(gameId, out Game? game))
+            return NotFound("Game session not found.");
+
+        IReadOnlyList<MoveHistory> history = game.GetMoveHistory();
+        List<MoveHistoryDto> historyDto = mapper.Map<List<MoveHistoryDto>>(history);
+        ForGame(gameId).Debug(
+            "Move history returned. MoveCount: {MoveCount}",
+            history.Count);
+        
+        return Ok(historyDto);
+    }
+}

@@ -1,0 +1,28 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ChessFormularix.Console", "ChessFormularix.Console\ChessFormularix.Console.csproj", "{8C32A5EF-E903-45A7-A29E-8492B79890BC}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ChessFormulatrix.WebAPI", "ChessFormulatrix.WebAPI\ChessFormulatrix.WebAPI.csproj", "{D578AB75-2974-4D0A-8059-1542BDA72D1C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ChessFormulatrix.Tests", "ChessFormulatrix.Tests\ChessFormulatrix.Tests.csproj", "{39EE9B25-B88E-46C8-8705-751BFCD44D4F}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{8C32A5EF-E903-45A7-A29E-8492B79890BC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8C32A5EF-E903-45A7-A29E-8492B79890BC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8C32A5EF-E903-45A7-A29E-8492B79890BC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8C32A5EF-E903-45A7-A29E-8492B79890BC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D578AB75-2974-4D0A-8059-1542BDA72D1C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D578AB75-2974-4D0A-8059-1542BDA72D1C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D578AB75-2974-4D0A-8059-1542BDA72D1C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D578AB75-2974-4D0A-8059-1542BDA72D1C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{39EE9B25-B88E-46C8-8705-751BFCD44D4F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{39EE9B25-B88E-46C8-8705-751BFCD44D4F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{39EE9B25-B88E-46C8-8705-751BFCD44D4F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{39EE9B25-B88E-46C8-8705-751BFCD44D4F}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
