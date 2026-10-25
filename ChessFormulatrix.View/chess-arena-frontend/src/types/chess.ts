@@ -33,7 +33,20 @@ export type MoveDto = {
 // - 'practice' = latihan santai, tanpa batas waktu & tanpa perlu isi nama, selalu vs Bot.
 // - 'bot'      = lawan Bot dengan kontrol waktu (seperti sebelumnya).
 // - 'pvp'      = player vs player lokal (satu layar, bergantian).
-export type GameMode = 'practice' | 'bot' | 'pvp';
+// - 'online'   = multiplayer online 2 pemain via SignalR lobby.
+export type GameMode = 'practice' | 'bot' | 'pvp' | 'online';
+
+export type LobbyRoomDto = {
+  roomId: string;
+  roomName: string;
+  hostName: string;
+  guestName?: string | null;
+  minutes: number;
+  clockEnabled: boolean;
+  isFull: boolean;
+  isStarted: boolean;
+  createdAt: string;
+};
 
 export type MoveResponse = {
   gameOver: boolean;

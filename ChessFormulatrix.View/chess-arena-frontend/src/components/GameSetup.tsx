@@ -1,4 +1,4 @@
-import { Bot, Clock3, Play, Sparkles, UserRound, Zap } from 'lucide-react';
+import { Bot, Clock3, Globe, Play, Sparkles, UserRound, Zap } from 'lucide-react';
 import type { GameMode } from '../types/chess';
 
 type GameSetupProps = {
@@ -13,6 +13,7 @@ type GameSetupProps = {
   onModeChange: (mode: GameMode) => void;
   onBlackNameChange: (value: string) => void;
   onMinutesChange: (value: number) => void;
+  onOpenLobby?: () => void;
   onSubmit: () => void;
 };
 
@@ -30,6 +31,7 @@ export function GameSetup({
                             onModeChange,
                             onBlackNameChange,
                             onMinutesChange,
+                            onOpenLobby,
                             onSubmit,
                           }: GameSetupProps) {
   if (!open) return null;
@@ -45,7 +47,9 @@ export function GameSetup({
                 ? 'Latihan santai tanpa batas waktu dan tanpa lawan Bot. Anda bebas menggerakkan Putih maupun Hitam sendiri, tanpa perlu isi nama.'
                 : mode === 'bot'
                     ? 'Anda memegang Putih. Lawan AI Bot membaca saran langkah langsung dari mesin game.'
-                    : 'Anda memegang Putih. Mainkan bersama teman secara bergantian di perangkat yang sama.'}
+                    : mode === 'online'
+                        ? 'Bermain online secara real-time dengan pemain lain melalui lobi WebSocket.'
+                        : 'Anda memegang Putih. Mainkan bersama teman secara bergantian di perangkat yang sama.'}
           </p>
 
           <fieldset className="setup-time">
@@ -71,6 +75,16 @@ export function GameSetup({
                   onClick={() => onModeChange('pvp')}
               >
                 <UserRound size={15} /> Lawan Pemain
+              </button>
+              <button
+                  className={mode === 'online' ? 'time-preset time-preset--active' : 'time-preset'}
+                  type="button"
+                  onClick={() => {
+                    onModeChange('online');
+                    if (onOpenLobby) onOpenLobby();
+                  }}
+              >
+                <Globe size={15} /> Online Lobby
               </button>
             </div>
           </fieldset>
@@ -130,10 +144,17 @@ export function GameSetup({
 
           {error && <p className="form-error" role="alert">{error}</p>}
 
-          <button className="primary-button primary-button--wide" type="button" onClick={onSubmit} disabled={loading}>
-            {loading ? <Sparkles className="spin" size={18} /> : <Play size={18} fill="currentColor" />}
-            {loading ? 'Menyiapkan papan…' : mode === 'practice' ? 'Mulai latihan' : 'Mulai pertandingan'}
-          </button>
+          {mode === 'online' ? (
+            <button className="primary-button primary-button--wide" type="button" onClick={onOpenLobby}>
+              <Globe size={18} />
+              Buka Lobi Online
+            </button>
+          ) : (
+            <button className="primary-button primary-button--wide" type="button" onClick={onSubmit} disabled={loading}>
+              {loading ? <Sparkles className="spin" size={18} /> : <Play size={18} fill="currentColor" />}
+              {loading ? 'Menyiapkan papan…' : mode === 'practice' ? 'Mulai latihan' : 'Mulai pertandingan'}
+            </button>
+          )}
           <p className="setup-dialog__footnote">Pilih bidak, lihat petak legal, lalu klik atau tarik ke tujuan.</p>
         </section>
       </div>

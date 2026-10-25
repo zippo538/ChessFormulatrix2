@@ -1,19 +1,17 @@
-using System.Collections.Concurrent;
 using AutoMapper;
 using ChessFormularix.Console;
 using ChessFormularix.Console.Enums;
 using ChessFormularix.Console.Model;
 using ChessFormulatrix.WebAPI.DTO;
+using ChessFormulatrix.WebAPI.Services;
 using Microsoft.AspNetCore.Mvc;
 using Serilog;
 
 namespace ChessFormulatrix.WebAPI.Controllers;
 [ApiController]
 [Route("api/[controller]")]
-public class ChessController(IMapper mapper) : ControllerBase
+public class ChessController(IMapper mapper, GameSessionService sessions) : ControllerBase
 {
-    private static readonly ConcurrentDictionary<string, Game> _activeGames = new();
-
     private readonly Serilog.ILogger _logger = Log.ForContext<ChessController>();
 
     private Serilog.ILogger ForGame(string gameId) =>
@@ -46,7 +44,7 @@ public class ChessController(IMapper mapper) : ControllerBase
                 gameId: gameId);
             game.StartGame();
 
-            if (!_activeGames.TryAdd(gameId, game))
+            if (!sessions.TryAdd(gameId, game))
             {
                 gameLogger.Error("Failed to register chess game session in active game storage");
                 return StatusCode(500, "Gagal membuat sesi permainan.");
@@ -80,10 +78,10 @@ public class ChessController(IMapper mapper) : ControllerBase
     [HttpGet("{gameId}/board")]
     public ActionResult<BoardDto> GetBoard(string gameId)
     {
-        if (!_activeGames.TryGetValue(gameId, out Game? game))
+        if (!sessions.TryGet(gameId, out Game? game))
             return NotFound("Game session not found.");
 
-        Board board = game.GetCurrentBoard();
+        Board board = game!.GetCurrentBoard();
         BoardDto boardDto = mapper.Map<BoardDto>(board);
         ForGame(gameId).Debug("Current chess board returned");
 
@@ -94,13 +92,13 @@ public class ChessController(IMapper mapper) : ControllerBase
     [HttpGet("{gameId}/valid-moves")]
     public ActionResult<List<PosititionDto>> GetValidMoves(string gameId, [FromQuery] int row, [FromQuery] int col)
     {
-        if (!_activeGames.TryGetValue(gameId, out Game? game))
+        if (!sessions.TryGet(gameId, out Game? game))
             return NotFound("Game session not found.");
 
         Serilog.ILogger gameLogger = ForGame(gameId);
         var position = new Postition { Row = row, Column = col };
 
-        if (game.TrySelectPiece(position))
+        if (game!.TrySelectPiece(position))
         {
             List<Postition> moves = game.GetAvailableMovesForSelectedPiece();
             List<PosititionDto> movesDto = mapper.Map<List<PosititionDto>>(moves);
@@ -122,13 +120,13 @@ public class ChessController(IMapper mapper) : ControllerBase
     public IActionResult MakeMove(string gameId, [FromBody] MoveDto moveDto)
     {
         
-        if (!_activeGames.TryGetValue(gameId, out Game? game))
+        if (!sessions.TryGet(gameId, out Game? game))
             return NotFound("Game session not found.");
         Serilog.ILogger gameLogger = ForGame(gameId);
         try
         {
 
-            (TimeSpan WhiteRemaining, TimeSpan BlackRemaining, bool IsExpired, Color? TimedOutColor) timeStatus = game.CheckTimeStatus();
+            (TimeSpan WhiteRemaining, TimeSpan BlackRemaining, bool IsExpired, Color? TimedOutColor) timeStatus = game!.CheckTimeStatus();
             if (timeStatus.IsExpired)
             {
                 gameLogger.Warning(
@@ -295,7 +293,7 @@ public class ChessController(IMapper mapper) : ControllerBase
     [HttpGet("{gameId}/suggestion")]
     public ActionResult<MoveDto> GetSuggestion(string gameId, [FromQuery] int row, [FromQuery] int col)
     {
-        if (!_activeGames.TryGetValue(gameId, out Game? game))
+        if (!sessions.TryGet(gameId, out Game? game))
             return NotFound("Game session not found.");
         Serilog.ILogger gameLogger = ForGame(gameId);
 
@@ -308,7 +306,7 @@ public class ChessController(IMapper mapper) : ControllerBase
                 row,
                 col);
 
-            if (game.TrySelectPiece(position))
+            if (game!.TrySelectPiece(position))
             {
                 Move? suggestedMove = game.GetSuggestedMoveForPiece(position);
 
@@ -346,11 +344,11 @@ public class ChessController(IMapper mapper) : ControllerBase
     [HttpPost("{gameId}/bot-move")]
     public IActionResult MakeBotMove(string gameId, [FromQuery] int depth = Game.DefaultBotDepth)
     {
-        if (!_activeGames.TryGetValue(gameId, out Game? game))
+        if (!sessions.TryGet(gameId, out Game? game))
             return NotFound("Game session not found.");
         Serilog.ILogger gameLogger = ForGame(gameId);
 
-        if (game.GameResult.Type != GameOverType.None)
+        if (game!.GameResult.Type != GameOverType.None)
         {
             gameLogger.Warning(
                 "Manual bot move rejected because game has ended. Reason: {Reason}",
@@ -449,11 +447,11 @@ public class ChessController(IMapper mapper) : ControllerBase
     [HttpGet("{gameId}/time-status")]
     public IActionResult GetTimeStatus(string gameId)
     {
-        if (!_activeGames.TryGetValue(gameId, out Game? game))
+        if (!sessions.TryGet(gameId, out Game? game))
             return NotFound("Game session not found.");
 
 
-        (TimeSpan WhiteRemaining, TimeSpan BlackRemaining, bool IsExpired, Color? TimedOutColor) status = game.CheckTimeStatus();
+        (TimeSpan WhiteRemaining, TimeSpan BlackRemaining, bool IsExpired, Color? TimedOutColor) status = game!.CheckTimeStatus();
         ForGame(gameId).Debug(
             "Time status returned. CurrentTurn: {CurrentTurn}, TimeExpired: {TimeExpired}, " +
             "WhiteRemainingSeconds: {WhiteRemainingSeconds}, BlackRemainingSeconds: {BlackRemainingSeconds}",
@@ -479,10 +477,10 @@ public class ChessController(IMapper mapper) : ControllerBase
     [HttpPost("{gameId}/resign")]
     public IActionResult Resign(string gameId)
     {
-        if (!_activeGames.TryGetValue(gameId, out Game? game))
+        if (!sessions.TryGet(gameId, out Game? game))
             return NotFound("Game session not found.");
 
-        Color resignedPlayer = game.CurrentPlayer.PlayerColor;
+        Color resignedPlayer = game!.CurrentPlayer.PlayerColor;
         game.Resign(game.CurrentPlayer);
         
         ForGame(gameId).Information(
@@ -500,10 +498,10 @@ public class ChessController(IMapper mapper) : ControllerBase
     [HttpGet("{gameId}/history")]
     public ActionResult<List<MoveHistoryDto>> GetMoveHistory(string gameId)
     {
-        if (!_activeGames.TryGetValue(gameId, out Game? game))
+        if (!sessions.TryGet(gameId, out Game? game))
             return NotFound("Game session not found.");
 
-        IReadOnlyList<MoveHistory> history = game.GetMoveHistory();
+        IReadOnlyList<MoveHistory> history = game!.GetMoveHistory();
         List<MoveHistoryDto> historyDto = mapper.Map<List<MoveHistoryDto>>(history);
         ForGame(gameId).Debug(
             "Move history returned. MoveCount: {MoveCount}",

@@ -1,5 +1,7 @@
 using System.Text.Json.Serialization;
 using ChessFormulatrix.WebAPI;
+using ChessFormulatrix.WebAPI.Hubs;
+using ChessFormulatrix.WebAPI.Services;
 using Serilog;
 using Serilog.Events;
 
@@ -46,11 +48,22 @@ try
 
     builder.Services.AddAutoMapper(config => config.AddProfile<ChessProfile>());
 
+    // Shared services
+    builder.Services.AddSingleton<GameSessionService>();
+    builder.Services.AddSingleton<LobbyService>();
+
+    // SignalR
+    builder.Services.AddSignalR();
+
     builder.Services.AddCors(options =>
         options.AddPolicy("AllowReactApp", policy => policy
-            .WithOrigins("http://localhost:3000", "http://localhost:5173")
+            .WithOrigins(
+                "http://localhost:3000",
+                "http://localhost:5173",
+                "http://localhost:8080")
             .AllowAnyHeader()
-            .AllowAnyMethod()));
+            .AllowAnyMethod()
+            .AllowCredentials()));
 
     WebApplication app = builder.Build();
     app.UseSerilogRequestLogging();
@@ -65,6 +78,10 @@ try
     app.UseCors("AllowReactApp");
     app.UseAuthorization();
     app.MapControllers();
+
+    // SignalR hub endpoints
+    app.MapHub<LobbyHub>("/hubs/lobby");
+    app.MapHub<GameHub>("/hubs/game");
 
     app.Run();
 }
