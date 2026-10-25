@@ -1,6 +1,7 @@
 using AutoMapper;
 using ChessFormulatrix.WebAPI.Controllers;
 using ChessFormulatrix.WebAPI.DTO;
+using ChessFormulatrix.WebAPI.Services;
 using Microsoft.AspNetCore.Mvc;
 using Moq;
 
@@ -63,7 +64,7 @@ public class ChessControllerTest
                 mapper.Map<List<MoveHistoryDto>>(It.IsAny<object>()))
             .Returns(_historyDto);
 
-        _controller = new ChessController(_mapperMock.Object);
+        _controller = new ChessController(_mapperMock.Object, new GameSessionService());
     }
 
     // =========================================================
