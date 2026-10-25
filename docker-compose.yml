@@ -1,4 +1,15 @@
 services:
+  chess-web:
+    build:
+      context: ./ChessFormulatrix.View/chess-arena-frontend
+      dockerfile: Dockerfile
+    container_name: chess-web
+    restart: unless-stopped
+    expose:
+      - "80"
+    networks:
+      - proxy_network
+
   chess-api:
     build:
       context: .
@@ -10,20 +21,6 @@ services:
       - ASPNETCORE_URLS=http://+:8080
     expose:
       - "8080"
-    networks:
-      - proxy_network
-
-  nginx:
-    image: nginx:alpine
-    container_name: chess-nginx
-    restart: unless-stopped
-    ports:
-      - "80  "
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
-    depends_on:
-      - chess-api
     networks:
       - proxy_network
 
